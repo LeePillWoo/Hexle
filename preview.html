@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hexle · 에셋 미리보기</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #1d3b5c; font: 13px system-ui, sans-serif; }
+    #hud { position: fixed; top: 10px; left: 10px; color: #fff; background: #0008; padding: 8px 12px; border-radius: 6px; pointer-events: none; }
+    #name { font-size: 16px; font-weight: 600; min-height: 20px; }
+    .group { color: #ffe9a8; font-weight: 600; font-size: 14px; text-shadow: 0 1px 3px #000; }
+  </style>
+</head>
+<body>
+  <div id="hud"><div id="name"></div>휠 줌 · 좌클릭 회전 · 우클릭 이동 · 모델에 마우스를 올리면 이름 표시</div>
+  <script type="module" src="/src/preview.ts"></script>
+</body>
+</html>
