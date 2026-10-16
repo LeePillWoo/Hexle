@@ -56,7 +56,10 @@ export function createOcean(sunDir: THREE.Vector3) {
       reflectance *= 1.0 - shallow * 0.5;`)
     .replace('vec3 outgoingLight = albedo;', `
       float n = noise.x;
-      float foam = 1.0 - smoothstep(0.0, 0.08, depth + (n + 0.5) * 0.05);        // 물가에 붙은 거품
+      // 물가 거품: 해안선에 붙은 또렷한 흰 띠 + 살짝 떨어진 두 번째 줄
+      float fn = fbm(worldPosition.xz * 4.0 + time * 0.15);
+      float foam = 1.0 - smoothstep(0.1, 0.16, depth + (fn - 0.5) * 0.08);
+      foam += (1.0 - smoothstep(0.03, 0.06, abs(depth - 0.26 - sin(time * 0.8 + s * 3.0) * 0.04))) * smoothstep(0.45, 0.6, fn) * 0.8;
       // 해안으로 밀려오는 잔파도: 해안 거리 s 를 따라 띠가 안쪽으로 이동, 노이즈로 끊어진다
       float ph = fract(s * 0.9 + time * 0.22);
       float band = smoothstep(0.82, 0.96, ph) * (1.0 - smoothstep(0.96, 1.0, ph));

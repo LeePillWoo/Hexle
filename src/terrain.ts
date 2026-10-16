@@ -64,38 +64,34 @@ export function clusters(cells: Cell[], kind: Kind): Hex[][] {
 }
 const adjacent = (a: Hex, b: Hex) => neighbors(a).some(n => n.q === b.q && n.r === b.r);
 
-// 산: 묶음 모양에 따라 봉우리·능선을 만든다
-//  1칸 작은 산 / 2~3칸이 서로 붙은 덩어리면 가운데 큰 산 하나 / 길게 이어지거나 4칸 이상이면 봉우리+능선 산맥
-type Peak = Pt & { h: number; r: number };
-type Ridge = { a: Pt; b: Pt; h: number; w: number };
-let peaks: Peak[] = [], ridges: Ridge[] = [], beaches: Pt[] = [];
-function buildMountains(cells: Cell[]) {
-  peaks = []; ridges = [];
-  for (const comp of clusters(cells, 'mountain')) {
-    const pts = comp.map(toWorld), n = comp.length;
-    const compact = n <= 3 && comp.every(a => comp.every(b => a === b || adjacent(a, b)));
-    if (compact) {
-      const c = { x: pts.reduce((s, p) => s + p.x, 0) / n, z: pts.reduce((s, p) => s + p.z, 0) / n };
-      peaks.push({ ...c, h: [0, 0.8, 1.55, 1.95][n], r: [0, 1.25, 1.85, 2.15][n] });
-    } else {
-      pts.forEach(p => peaks.push({ ...p, h: 1.5 + hash(p.x, p.z) * 0.8, r: 1.25 }));    // 봉우리마다 높이 다르게
-      comp.forEach((a, i) => comp.slice(i + 1).forEach(b => {
-        if (adjacent(a, b)) ridges.push({ a: toWorld(a), b: toWorld(b), h: 0.95, w: 0.9 });  // 능선은 봉우리보다 낮게
-      }));
-    }
-  }
-}
+// 산: 칸마다 봉우리를 세우지 않고, 묶음 전체를 하나의 산괴(massif)로 만든다.
+//  높이 = (산 묶음 안쪽으로 얼마나 깊이 들어왔나) × (주변 산 칸이 얼마나 많나)
+//  → 덩어리 한가운데에 주봉이 서고, 길게 이어지면 능선, 1칸이면 작은 산. 능선·골짜기는 ridged 노이즈로.
+let mtnCells: Pt[] = [], mtnRing: Pt[] = [], mtnSet = new Set<string>(), beaches: Pt[] = [];
 function segDist(x: number, z: number, a: Pt, b: Pt) {
   const dx = b.x - a.x, dz = b.z - a.z, t = Math.min(1, Math.max(0, ((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz)));
   return Math.hypot(x - a.x - dx * t, z - a.z - dz * t);
 }
+// 능선형 노이즈: 1-|2n-1| 을 제곱해 겹치면 날카로운 등줄기와 골이 생긴다
+function ridged(x: number, z: number) {
+  let s = 0, a = 0.5, f = 1;
+  for (let i = 0; i < 4; i++) {
+    const n = 1 - Math.abs(2 * vnoise(x * f + i * 17.3, z * f - i * 9.1) - 1);
+    s += a * n * n; f *= 2.1; a *= 0.5;
+  }
+  return s / 0.94;
+}
 function mountain(x: number, z: number) {
-  let m = 0;
-  for (const p of peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) m = Math.max(m, p.h * ss(p.r, 0.1, d) ** 1.6); }
-  for (const r of ridges) { const d = segDist(x, z, r.a, r.b); if (d < r.w) m = Math.max(m, r.h * ss(r.w, 0, d) ** 1.3); }
-  if (!m) return 0;
-  const ridged = 1 - Math.abs(2 * vnoise(x * 2.6, z * 2.6) - 1);       // 날카로운 주름
-  return m * (0.8 + 0.35 * fbm(x * 1.2, z * 1.2)) + m * 0.3 * ridged;
+  let mass = 0;
+  for (const c of mtnCells) { const d = Math.hypot(x - c.x, z - c.z); if (d < 3.5) mass += ss(3.5, 0, d); }
+  if (mass < 0.02) return 0;
+  const dIn = mtnSet.has(key(fromWorld(x, z))) ? minSdf(x, z, mtnRing) : -minSdf(x, z, mtnCells);
+  // 안쪽으로 갈수록 계속 높아지는 원뿔꼴(포화시키지 않아야 꼭대기가 평평한 고원이 안 된다)
+  const body = Math.max(0, dIn + 0.45) ** 1.1;
+  const scale = Math.min(1.3, 0.7 + 0.15 * mass ** 0.8);                   // 뭉칠수록 크게
+  // 도메인을 비틀어 능선이 곧게 뻗지 않고 주봉에서 갈래치게
+  const wx = x + (fbm(x * 0.6, z * 0.6) - 0.5) * 1.2, wz = z + (fbm(x * 0.6 + 5, z * 0.6) - 0.5) * 1.2;
+  return 0.75 * scale * body * (0.45 + 0.75 * ridged(wx * 0.9, wz * 0.9));
 }
 const beach = (x: number, z: number) => {
   let b = 0;
@@ -200,26 +196,46 @@ const mat = new THREE.MeshStandardMaterial({ roughness: 0.9 });
 mat.onBeforeCompile = s => {
   Object.assign(s.uniforms, shared);
   const head = 'uniform float time;\n' + FIELD_GLSL + 'varying vec3 vW;\nvarying vec3 vN;\n';
+  // 바위 굴곡: 높이값 h 의 화면 미분으로 노멀을 기울이는 범프 매핑 (텍스처 없이 메시보다 잘게)
+  const bump = /* glsl */`
+    float rockMask = 0.0;
+    vec3 bumpN(vec3 n, vec3 p, float h) {
+      vec3 dpdx = dFdx(p), dpdy = dFdy(p);
+      vec3 r1 = cross(dpdy, n), r2 = cross(n, dpdx);
+      float det = dot(dpdx, r1);
+      vec3 grad = sign(det) * (dFdx(h) * r1 + dFdy(h) * r2);
+      return normalize(abs(det) * n - grad);
+    }
+  `;
   s.vertexShader = head + s.vertexShader.replace('#include <begin_vertex>',
     '#include <begin_vertex>\nvW = (modelMatrix * vec4(position, 1.0)).xyz;\nvN = normalize(mat3(modelMatrix) * normal);');
-  s.fragmentShader = head + s.fragmentShader
+  s.fragmentShader = head + bump + s.fragmentShader
+    .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      // 바위: 비탈을 따라 흘러내린 결 + 잔 굴곡
+      float hb = fbm(vec2(vW.x + vW.z, vW.y * 2.0) * vec2(2.2, 3.0)) * 0.08 + fbm(vW.xz * 4.0 + vW.y * 2.0) * 0.03;
+      normal = bumpN(normal, -vViewPosition, hb * rockMask);`)
     .replace('#include <color_fragment>', `
       vec4 fld = fieldAt(vW.xz);
       float lvl = waterLevel(vW.xz);
-      vec3 grass = mix(vec3(0.09, 0.24, 0.035), vec3(0.16, 0.34, 0.05), smoothstep(0.3, 0.7, fbm(vW.xz * 0.35)));
+      vec3 grass = mix(vec3(0.14, 0.34, 0.04), vec3(0.24, 0.45, 0.06), smoothstep(0.3, 0.7, fbm(vW.xz * 0.35)));
       vec3 cliff = mix(vec3(0.2, 0.12, 0.065), vec3(0.26, 0.16, 0.085),
                        smoothstep(-0.4, 0.4, sin(vW.y * 16.0 + fbm(vW.xz * 0.6) * 4.0)));   // 은은한 지층 띠
       cliff *= mix(0.65, 1.0, smoothstep(lvl, lvl + 0.35, vW.y));
       vec3 stone = mix(vec3(0.11, 0.1, 0.09), vec3(0.2, 0.18, 0.16), fbm(vW.xz * 2.5 + vW.y));
-      vec3 sand = vec3(0.5, 0.39, 0.22);
+      vec3 sand = mix(vec3(0.4, 0.31, 0.18), vec3(0.6, 0.48, 0.29), smoothstep(lvl - 0.02, lvl + 0.06, vW.y));  // 젖은 모래 → 마른 모래
       sand = mix(sand, vec3(0.62, 0.6, 0.5), fld.b * smoothstep(lvl - 0.02, lvl - 0.15, vW.y));  // 호수 바닥은 밝은 석회 모래 → 에메랄드빛
       // 모래 띠: 바다는 수면 위 0.34~0.42 까지, 호수는 물가에 얇게만
       vec3 c = mix(sand, grass, smoothstep(lvl + mix(0.34, 0.02, fld.b), lvl + mix(0.42, 0.06, fld.b), vW.y));
       c = mix(c, mix(vec3(0.3, 0.19, 0.1), vec3(0.4, 0.27, 0.14), fbm(vW.xz * 6.0)), fld.a);   // 밭 흙·마을 길
-      c = mix(c, stone, smoothstep(1.3, 1.6, vW.y + fbm(vW.xz * 2.0) * 0.3));           // 높은 곳은 바위 (낮은 산자락은 풀)
+      float high = smoothstep(1.1, 1.4, vW.y + fbm(vW.xz * 2.0) * 0.3);
+      c = mix(c, stone, high);                                                           // 높은 곳은 바위 (낮은 산자락은 풀)
       float steep = smoothstep(0.8, 0.55, vN.y) * smoothstep(lvl - 0.15, lvl + 0.05, vW.y);
       c = mix(c, mix(cliff, stone, smoothstep(0.65, 0.85, vW.y)), steep);              // 해안 절벽은 흙 지층, 산비탈은 바위
-      c = mix(c, vec3(0.8, 0.83, 0.88), smoothstep(2.15, 2.35, vW.y + fbm(vW.xz * 3.0) * 0.3) * smoothstep(0.35, 0.6, vN.y)); // 봉우리 만년설
+      rockMask = max(steep, high);
+      // 만년설: 높을수록, 평평할수록. 노이즈로 능선을 따라 흘러내린 자국
+      float snow = smoothstep(2.35, 2.6, vW.y + (fbm(vW.xz * 3.0) - 0.5) * 0.7 + vN.y * 0.4);
+      c = mix(c, vec3(0.82, 0.85, 0.9), snow);
+      rockMask *= 1.0 - snow * 0.7;
       diffuseColor.rgb = absorb(c, vW.y - lvl, fld.b);`)
     .replace('#include <emissivemap_fragment>',
       '#include <emissivemap_fragment>\ntotalEmissiveRadiance += underwaterLight(vW.xz, vW.y - lvl, time) * (diffuseColor.rgb + 0.1);');
@@ -288,7 +304,10 @@ export function setLand(cells: Cell[], extraRocks: typeof rocks = []) {
   lakes = lakeHexes.map(toWorld);
   lakeRing = ringOf(lakeHexes, lakeSet);
   rocks = extraRocks;
-  buildMountains(cells);
+  const mtns = cells.filter(c => c.kind === 'mountain').map(c => c.hex);
+  mtnSet = new Set(mtns.map(key));
+  mtnCells = mtns.map(toWorld);
+  mtnRing = ringOf(mtns, mtnSet);
   beaches = cells.filter(c => c.kind === 'beach').map(c => toWorld(c.hex));
   const farms = cells.filter(c => c.kind === 'farm').map(c => c.hex);
   farmSet = new Set(farms.map(key));

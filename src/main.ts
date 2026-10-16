@@ -78,7 +78,7 @@ function refresh() {
   // 장식은 지형 높이가 바뀌었을 수 있으니 전부 다시 올린다
   for (const o of decor.children) disposeDecor(o);
   decor.clear();
-  decor.add(decorateAll(land));
+  decor.add(decorateAll(land, lakes));
   overlay.rebuild(land.map(t => t.hex));
   // 놓을 수 없는 자리가 된 아이템(예: 메워진 호수의 물고기)은 사라진다
   for (const it of [...items]) {
