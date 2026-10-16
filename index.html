@@ -10,9 +10,9 @@
     .title { font-weight: 700; font-size: 13px; letter-spacing: .05em; color: #7a5a32; margin-bottom: 6px; }
     button { font: inherit; cursor: pointer; border: 1px solid #a8865a; border-radius: 6px; background: #e4cf9f; padding: 4px 12px; color: inherit; }
     .inv { bottom: 14px; width: min(340px, calc(50vw - 40px)); text-align: center; }
-    #tileInv { left: 14px; }
-    #itemInv { right: 14px; }
-    .inv button.add { width: 100%; margin: 2px 0 8px; font-weight: 700; }
+    .inv.left { left: 14px; }
+    .inv.right { right: 14px; }
+    .inv .add { width: 100%; margin: 2px 0 8px; font-weight: 700; }
     .tabs { display: flex; gap: 4px; margin-bottom: 6px; }
     .tab { flex: 1; padding: 3px 0; font-size: 12px; background: #eadcb4; border-color: #c4a87a; }
     .tab i { font-style: normal; font-size: 11px; color: #8a6a42; }
@@ -24,30 +24,21 @@
     .card em { position: absolute; top: 2px; right: 4px; font-style: normal; font-size: 11px; font-weight: 700; color: #fff; background: #a8865a; border-radius: 8px; padding: 0 5px; }
     .card b { font-size: 24px; }
     .card small { font-size: 10px; color: #8a6a42; }
-    .card.item { background: #e8f2f8; }
+    .inv.right .card { background: #e8f2f8; }
     .card.sel { outline: 3px solid #e8a33a; background: #fff2c2; }
+    #seaTiles, #deepItems { background: #cfe6efee; border-color: #5a8aa8; }
+    #seaTiles .title, #deepItems .title { color: #2f5a78; }
+    #seaTiles .tab, #deepItems .tab { background: #bdd8e6; border-color: #8ab0c4; }
+    #seaTiles .tab.on, #deepItems .tab.on { background: #eaf6fb; }
+    #seaTiles .slot, #deepItems .slot { background: #dcecf3; border-color: #9cc0d2; }
     #msg { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: 700; text-shadow: 0 0 6px #fff, 0 0 2px #fff; white-space: nowrap; pointer-events: none; }
+    #bar { top: 14px; left: 14px; display: flex; gap: 6px; align-items: center; padding: 8px 10px; }
+    #bar .mode.on { background: #fff6dc; font-weight: 700; outline: 2px solid #e8a33a; }
+    #bar .sep { width: 1px; height: 22px; background: #a8865a; margin: 0 4px; }
     #toggles { top: 14px; right: 14px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   </style>
 </head>
 <body>
-  <div class="panel inv" id="tileInv">
-    <div class="title">타일</div>
-    <button class="add" id="addTile">+ 타일 추가</button>
-    <div class="tabs" id="tileTabs"></div>
-    <div class="cards" id="tileCards"></div>
-  </div>
-  <div class="panel inv" id="itemInv">
-    <div class="title">아이템</div>
-    <button class="add" id="addItem">+ 아이템 추가</button>
-    <div class="tabs" id="itemTabs"></div>
-    <div class="cards" id="itemCards"></div>
-  </div>
-  <div id="msg"></div>
-  <div class="panel" id="toggles">
-    <label><input type="checkbox" id="tGrid" checked /> 육각 그리드 (G)</label>
-    <label><input type="checkbox" id="tEdge" checked /> 영역 경계선 (B)</label>
-  </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
