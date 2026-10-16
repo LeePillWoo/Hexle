@@ -1,4 +1,4 @@
-// 헤드리스 크롬 자동 점검: 모든 타일·아이템을 놓고 배치 규칙과 잠수를 검사한 뒤 스크린샷을 남긴다.
+// 헤드리스 크롬 자동 점검: 모든 타일·아이템을 놓고 배치 규칙·잠수·저장 복원·지우기·초기화·모바일 레이아웃을 검사한 뒤 스크린샷을 남긴다.
 // 사용: npm run dev 를 띄운 채로  node scripts/check.mjs <출력 폴더>
 // 콘솔 오류(셰이더 컴파일 등)가 있으면 마지막 줄에 찍힌다. 개발 서버의 window.hexle 핸들을 쓴다.
 import { spawn } from 'node:child_process';
@@ -28,8 +28,14 @@ await send('Runtime.enable');
 const js = async expr => { const r = (await send('Runtime.evaluate', { expression: expr, returnByValue: true })).result; if (r.exceptionDetails) console.log('ERR', JSON.stringify(r.exceptionDetails).slice(0, 600)); return r.result?.value; };
 const shot = async name => writeFileSync(join(OUT, `${name}.png`), Buffer.from((await send('Page.captureScreenshot')).result.data, 'base64'));
 const view = (tx, ty, tz, px, py, pz) => js(`hexle.cam.controls.target.set(${tx}, ${ty}, ${tz}); hexle.cam.camera.position.set(${px}, ${py}, ${pz}); 0`);
+const mouse = (type, x, y) => send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1, pointerType: 'mouse' });
+const tap = async (x, y) => { await mouse('mouseMoved', x, y); await wait(80); await mouse('mousePressed', x, y); await mouse('mouseReleased', x, y); await wait(900); };
+const screenOf = (x, y, z) => js(`(() => { const c = hexle.cam.camera, v = new c.position.constructor(${x}, ${y}, ${z}).project(c); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; })()`);
+const summary = () => js(`JSON.stringify([hexle.state.cells.length, hexle.state.items.length, Object.values(hexle.invs).flat().map(i => Object.values(i.counts()).reduce((a, b) => a + b, 0))])`);
 
 await wait(6000);
+await js(`localStorage.removeItem('hexle.save.v1'); 0`);
+await send('Page.reload'); await wait(6000);
 const cells = {
   forest: [[0, -2], [1, -2], [-1, -1]], mountain: [[-2, 0], [-3, 1]], farm: [[0, 1], [1, 1]], house: [[2, -1], [3, -1], [3, -2]],
   volcano: [[-2, -1], [-3, 0]], castle: [[2, 0], [2, 1], [1, 2]], orchard: [[-1, 1], [-2, 2]], snow: [[1, -3], [2, -3]], beach: [[3, 0]],
@@ -43,10 +49,11 @@ console.log(await js(`(() => { const put = [['cow', 0.6, 0.4], ['chicken', -0.5,
   ['dolphin', 6, 5], ['whale', -2, 8], ['seagull', 3, 6], ['boat', 7, -4], ['buoy', 8, 2], ['turtle', 5, 4],
   ['school', 9, 1.7], ['ray', 10, 0], ['jellyfish', 8.5, 3.5], ['octopus', 10, -1.7], ['crab', 10.5, -1.5], ['seahorse', 9.5, 2.2],
   ['chest', 9.2, -1.9], ['kelp', 9.8, 2.6], ['seaweed', 10.2, 2.0], ['coralPink', 9.4, 2.4], ['lantern', 1, 7.5], ['anglerfish', -10, -3.5], ['clam', 10.4, -2.0]];
-  for (const [k, x, z] of put) hexle.state.addItem(k, x, z); return 'items ' + hexle.state.items.length; })()`));
+  const skipped = []; for (const [k, x, z] of put) { if (hexle.canPlace(k, x, z)) hexle.state.addItem(k, x, z); else skipped.push(k); }
+  hexle.persist(); return 'items ' + hexle.state.items.length + (skipped.length ? ' (놓을 수 없는 자리라 건너뜀: ' + skipped + ')' : ''); })()`));
 console.log('canPlaceTile:', await js(`JSON.stringify({ attachOnSea: hexle.state.canPlaceTile('grass', { q: 8, r: 0 }), attachNext: hexle.state.canPlaceTile('grass', { q: -1, r: 0 }),
   isletNearLand: hexle.state.canPlaceTile('islet', { q: -1, r: 0 }), isletFar: hexle.state.canPlaceTile('islet', { q: -6, r: -3 }), reefOnLand: hexle.state.canPlaceTile('reef', { q: 0, r: 0 }), reefFar: hexle.state.canPlaceTile('reef', { q: 6, r: -4 }) })`));
-await js(`document.getElementById('tGrid').click(); document.getElementById('tEdge').click(); 0`);
+await js(`document.getElementById('tGrid').click(); document.getElementById('tEdge').click(); document.querySelector('#landTiles .add').click(); document.querySelector('#islandItems .add').click(); 0`);
 await view(0.5, 0, 1, 0.5, 24, 15); await wait(3000); await shot('all');
 await view(1.5, 0, -0.5, 1.5, 6, 3.5); await wait(1500); await shot('land');
 await view(4.3, 0, 6.9, 4.3, 7, 11); await wait(1500); await shot('palace_top');
@@ -60,6 +67,42 @@ await js(`document.querySelector('#seaTiles .add').click(); document.querySelect
 await shot('dive_ui');
 await js(`hexle.cam.dive(false); 0`); await wait(3000);
 console.log('after surface:', await js(`hexle.hud.mode + ' underwater=' + hexle.cam.isUnderwater() + ' camY=' + hexle.cam.camera.position.y.toFixed(2)`));
+
+// 저장·복원: 새로고침 후 칸·아이템·카드 수가 같아야 한다
+const before = await summary();
+await send('Page.reload'); await wait(7000);
+const after = await summary();
+console.log('persist:', before === after ? 'ok ' + after : 'MISMATCH ' + before + ' vs ' + after);
+
+// 지우기: 소(아이템)와 밭(타일)을 탭해서 지우면 카드로 돌아온다
+await view(1.5, 0.3, 0, 1.5, 12, 9); await wait(1500);
+await js(`hexle.hud.setErase(true); 0`);
+const cow = await js(`(() => { const it = hexle.state.items.find(i => i.kind === 'cow'); return [it.obj.position.x, it.obj.position.y, it.obj.position.z]; })()`);
+let [sx, sy] = await screenOf(...cow); sy -= 10;   // 발이 아니라 몸통을 탭 (모델에 직접 맞게)
+await tap(sx, sy);
+console.log('erase item:', await js(`'items=' + hexle.state.items.length + ' cowCards=' + (hexle.invs.island[1].counts().cow ?? 0) + ' msg=' + document.getElementById('msg').textContent`));
+[sx, sy] = await screenOf(1, 0.6, 1.73); await tap(sx, sy);   // 밭 칸 (0,1)
+console.log('erase tile:', await js(`'cells=' + hexle.state.cells.length + ' farmCards=' + (hexle.invs.island[0].counts().farm ?? 0) + ' msg=' + document.getElementById('msg').textContent`));
+await js(`hexle.hud.setErase(false); 0`);
+
+// 모바일 레이아웃: 좁은 화면이면 타일/아이템 패널 중 하나만, 전환 버튼으로 바꾼다
+await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }); await wait(1500);
+await js(`document.querySelector('#landTiles .add').click(); document.querySelector('#landTiles .add').click(); 0`); await wait(300);
+await shot('mobile');
+console.log('mobile:', await js(`JSON.stringify({ narrow: matchMedia('(max-width: 760px)').matches, tilesShown: getComputedStyle(document.getElementById('landTiles')).display !== 'none', itemsShown: getComputedStyle(document.getElementById('islandItems')).display !== 'none', barW: Math.round(document.getElementById('bar').getBoundingClientRect().width) })`));
+await js(`document.querySelector('#landTiles .swap').click(); 0`); await wait(300);
+console.log('after swap:', await js(`JSON.stringify({ tilesShown: getComputedStyle(document.getElementById('landTiles')).display !== 'none', itemsShown: getComputedStyle(document.getElementById('islandItems')).display !== 'none' })`));
+await shot('mobile_items');
+await send('Emulation.clearDeviceMetricsOverride'); await wait(800);
+
+// 초기화: 확인 창에서 취소하면 그대로, 초기화를 누르면 처음 상태
+await js(`document.getElementById('reset').click(); 0`); await wait(300);
+console.log('modal open:', await js(`!document.getElementById('modal').hidden`));
+await js(`document.querySelector('#modal .no').click(); 0`); await wait(300);
+console.log('after cancel:', await js(`'cells=' + hexle.state.cells.length + ' modalHidden=' + document.getElementById('modal').hidden`));
+await js(`document.getElementById('reset').click(); 0`); await wait(300);
+await js(`document.querySelector('#modal .yes').click(); 0`); await wait(2500);
+console.log('after reset:', await js(`'cells=' + hexle.state.cells.length + ' items=' + hexle.state.items.length + ' saved=' + !!localStorage.getItem('hexle.save.v1')`));
 console.log('console:', logs.length ? logs.slice(0, 12).join('\n  ') : 'clean');
 console.log('screenshots →', OUT);
 ws.close(); chrome.kill();

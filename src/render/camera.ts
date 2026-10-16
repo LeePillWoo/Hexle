@@ -6,6 +6,7 @@ import { heightFast, surfaceAt } from '../world/terrain';
 export function createCamera(canvas: HTMLElement) {
   const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 1000);
   camera.position.set(0, 15, 9);
+  if (innerHeight > innerWidth) camera.position.multiplyScalar(1.5);   // 세로 화면(모바일)은 더 멀리서 시작
   const controls = new OrbitControls(camera, canvas);
   controls.target.set(0, 0, 0.3);
   controls.enableDamping = true;

@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 
-export function createSky(renderer: THREE.WebGLRenderer, scene: THREE.Scene) {
+// shadowSize: 그림자 맵 크기 (모바일은 작게)
+export function createSky(renderer: THREE.WebGLRenderer, scene: THREE.Scene, shadowSize = 2048) {
   // 태양: 고도 35°, 방위 135°
   const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(55), THREE.MathUtils.degToRad(135));
 
@@ -26,7 +27,7 @@ export function createSky(renderer: THREE.WebGLRenderer, scene: THREE.Scene) {
   const sun = new THREE.DirectionalLight(0xfff0d8, 2.4);
   sun.position.copy(sunDir).multiplyScalar(30);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(shadowSize, shadowSize);
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.02;
   Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, far: 80 });

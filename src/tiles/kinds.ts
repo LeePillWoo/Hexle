@@ -32,7 +32,7 @@ export const TILE_INFO: Record<Kind, { name: string; icon: string; rule: Rule }>
   shells: { name: '조개밭', icon: '🐚', rule: 'sea' },
 };
 export const SEA_KINDS: SeaKind[] = ['reef', 'kelp', 'palace', 'wreck', 'ruins', 'trench', 'shells'];
-export const LAND_KINDS = (Object.keys(TILE_INFO) as Kind[]).filter(k => k !== 'camp' && !isSeaKind(k)) as LandKind[];
+export const LAND_KINDS = (Object.keys(TILE_INFO) as Kind[]).filter(k => !isSeaKind(k)) as LandKind[];
 export function isSeaKind(k: Kind): k is SeaKind { return (SEA_KINDS as string[]).includes(k); }
 export const RULE_HINT: Record<Rule, string> = {
   attach: '섬에 붙은 빛나는 칸을 클릭해 배치', island: '육지와 떨어진 바다 칸을 클릭해 새 섬 만들기', sea: '바다 칸(호수 제외)을 클릭해 배치',
@@ -44,7 +44,7 @@ export const cellsOf = (cells: Cell[], kind: Kind) => clusters(cells.filter(c =>
 export const TILE_TABS = {
   land: [
     ['전체', LAND_KINDS], ['자연', ['grass', 'forest', 'flower', 'orchard']],
-    ['지형', ['mountain', 'volcano', 'beach', 'snow', 'islet']], ['마을', ['farm', 'house', 'castle']],
+    ['지형', ['mountain', 'volcano', 'beach', 'snow', 'islet']], ['마을', ['farm', 'house', 'castle', 'camp']],
   ],
   sea: [['전체', SEA_KINDS], ['생태', ['reef', 'kelp', 'shells']], ['건축', ['palace', 'ruins', 'wreck']], ['지형', ['trench']]],
 } as const satisfies Record<string, readonly (readonly [string, readonly Kind[]])[]>;

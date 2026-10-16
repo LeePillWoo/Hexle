@@ -2,16 +2,28 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Hexle</title>
   <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font: 15px system-ui, sans-serif; color: #3b2c1a; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font: 15px system-ui, sans-serif; color: #3b2c1a; overscroll-behavior: none; }
+    canvas { display: block; touch-action: none; }
     .panel { position: fixed; background: #f3e6c4ee; border: 2px solid #a8865a; border-radius: 10px; padding: 12px 14px; box-shadow: 0 4px 14px #0005; }
-    .title { font-weight: 700; font-size: 13px; letter-spacing: .05em; color: #7a5a32; margin-bottom: 6px; }
-    button { font: inherit; cursor: pointer; border: 1px solid #a8865a; border-radius: 6px; background: #e4cf9f; padding: 4px 12px; color: inherit; }
+    .title { font-weight: 700; font-size: 13px; letter-spacing: .05em; color: #7a5a32; }
+    button { font: inherit; cursor: pointer; border: 1px solid #a8865a; border-radius: 6px; background: #e4cf9f; padding: 4px 12px; color: inherit; -webkit-tap-highlight-color: transparent; }
+    /* 상단 바 */
+    #bar { top: 10px; left: 10px; display: flex; gap: 6px; align-items: center; padding: 8px 10px; flex-wrap: wrap; max-width: calc(100vw - 20px); }
+    #bar button.on { background: #fff6dc; font-weight: 700; outline: 2px solid #e8a33a; }
+    #bar #erase.on { background: #ffe4e0; outline-color: #d04040; }
+    #bar .sep { width: 1px; height: 22px; background: #a8865a; margin: 0 4px; }
+    /* 인벤토리 */
     .inv { bottom: 14px; width: min(340px, calc(50vw - 40px)); text-align: center; }
     .inv.left { left: 14px; }
     .inv.right { right: 14px; }
+    .inv .head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .inv .head .title { flex: 1; }
+    .inv .swap { display: none; font-size: 12px; padding: 2px 8px; }
+    .inv .fold { font-size: 12px; padding: 1px 8px; }
+    .inv.collapsed .add, .inv.collapsed .tabs, .inv.collapsed .cards { display: none; }
     .inv .add { width: 100%; margin: 2px 0 8px; font-weight: 700; }
     .tabs { display: flex; gap: 4px; margin-bottom: 6px; }
     .tab { flex: 1; padding: 3px 0; font-size: 12px; background: #eadcb4; border-color: #c4a87a; }
@@ -31,11 +43,32 @@
     #seaTiles .tab, #deepItems .tab { background: #bdd8e6; border-color: #8ab0c4; }
     #seaTiles .tab.on, #deepItems .tab.on { background: #eaf6fb; }
     #seaTiles .slot, #deepItems .slot { background: #dcecf3; border-color: #9cc0d2; }
+    /* 메시지·확인 창 */
     #msg { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: 700; text-shadow: 0 0 6px #fff, 0 0 2px #fff; white-space: nowrap; pointer-events: none; }
-    #bar { top: 14px; left: 14px; display: flex; gap: 6px; align-items: center; padding: 8px 10px; }
-    #bar .mode.on { background: #fff6dc; font-weight: 700; outline: 2px solid #e8a33a; }
-    #bar .sep { width: 1px; height: 22px; background: #a8865a; margin: 0 4px; }
-    #toggles { top: 14px; right: 14px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+    #modal { position: fixed; inset: 0; background: #0006; display: flex; align-items: center; justify-content: center; z-index: 10; }
+    #modal[hidden] { display: none; }
+    #modal .box { position: static; max-width: 320px; text-align: center; }
+    #modal p { white-space: pre-line; margin: 4px 0 14px; line-height: 1.5; }
+    #modal .btns { display: flex; gap: 8px; justify-content: center; }
+    #modal .btns button { min-width: 90px; }
+    #modal .yes { background: #e8a33a; font-weight: 700; }
+    /* 좁은 화면: 바는 아이콘만, 인벤토리는 아래쪽 한 장(타일↔아이템 전환), 카드 2줄 */
+    @media (max-width: 760px) {
+      html, body { font-size: 13px; }
+      #bar { left: 8px; right: 8px; top: 8px; padding: 6px; gap: 4px; justify-content: center; max-width: none; }
+      #bar button { padding: 6px 9px; font-size: 16px; }
+      #bar .label { display: none; }
+      #bar .sep { margin: 0 2px; }
+      .inv { left: 8px; right: 8px; bottom: 8px; width: auto; padding: 8px 10px; }
+      .inv .swap { display: inline-block; }
+      .inv .add { margin: 0 0 6px; padding: 5px; }
+      .tabs { margin-bottom: 5px; }
+      .cards { grid-auto-rows: 58px; height: calc(58px * 2 + 6px); }
+      .card { height: 58px; font-size: 11px; gap: 0; }
+      .card b { font-size: 20px; }
+      .card small { display: none; }
+      #msg { bottom: auto; top: 62px; font-size: 13px; max-width: 90vw; white-space: normal; text-align: center; }
+    }
   </style>
 </head>
 <body>

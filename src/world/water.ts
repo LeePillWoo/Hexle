@@ -17,11 +17,11 @@ vec3 waves(vec2 p, float t) {
 }
 `;
 
-function createSurface(sunDir: THREE.Vector3) {
+function createSurface(sunDir: THREE.Vector3, reflection: number) {
   const normals = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/waternormals.jpg`);
   normals.wrapS = normals.wrapT = THREE.RepeatWrapping;
   const water = new Water(new THREE.PlaneGeometry(400, 400, 200, 200), {
-    textureWidth: 1024, textureHeight: 1024, waterNormals: normals, sunDirection: sunDir,
+    textureWidth: reflection, textureHeight: reflection, waterNormals: normals, sunDirection: sunDir,
     sunColor: 0xfff6e8, waterColor: 0x0a4f86, distortionScale: 1.2,
   });
   water.rotation.x = -Math.PI / 2;
@@ -122,8 +122,9 @@ lake.position.y = LAKE_Y;
 const abyss = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x021a2a }));
 abyss.position.y = -4.6;
 
-export function createWater(sunDir: THREE.Vector3) {
-  const water = createSurface(sunDir);
+// reflection: 반사 텍스처 크기 (모바일은 작게)
+export function createWater(sunDir: THREE.Vector3, reflection = 1024) {
+  const water = createSurface(sunDir, reflection);
   const group = new THREE.Group().add(water, underside, lake, abyss);
   underside.visible = false;
   return {
