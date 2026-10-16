@@ -53,7 +53,7 @@ console.log(await js(`(() => { const put = [['cow', 0.6, 0.4], ['chicken', -0.5,
   hexle.persist(); return 'items ' + hexle.state.items.length + (skipped.length ? ' (놓을 수 없는 자리라 건너뜀: ' + skipped + ')' : ''); })()`));
 console.log('canPlaceTile:', await js(`JSON.stringify({ attachOnSea: hexle.state.canPlaceTile('grass', { q: 8, r: 0 }), attachNext: hexle.state.canPlaceTile('grass', { q: -1, r: 0 }),
   isletNearLand: hexle.state.canPlaceTile('islet', { q: -1, r: 0 }), isletFar: hexle.state.canPlaceTile('islet', { q: -6, r: -3 }), reefOnLand: hexle.state.canPlaceTile('reef', { q: 0, r: 0 }), reefFar: hexle.state.canPlaceTile('reef', { q: 6, r: -4 }) })`));
-await js(`document.getElementById('tGrid').click(); document.getElementById('tEdge').click(); document.querySelector('#landTiles .add').click(); document.querySelector('#islandItems .add').click(); 0`);
+await js(`document.getElementById('tGrid').click(); document.getElementById('tEdge').click(); document.querySelector('#landTiles .egg').click(); document.querySelector('#islandItems .egg').click(); 0`);
 await view(0.5, 0, 1, 0.5, 24, 15); await wait(3000); await shot('all');
 await view(1.5, 0, -0.5, 1.5, 6, 3.5); await wait(1500); await shot('land');
 await view(4.3, 0, 6.9, 4.3, 7, 11); await wait(1500); await shot('palace_top');
@@ -63,10 +63,28 @@ await view(9.5, -0.9, 1.5, 7.2, -0.5, 3.8); await wait(1500); await shot('reef_u
 await view(-9, -3.2, -2.5, -7.5, -2.4, 0.5); await wait(1500); await shot('trench_under');
 await view(1.5, 0.3, 0, 1.5, 12, 9); await wait(1200); await js(`hexle.cam.dive(true); 0`); await wait(3000);
 console.log('after dive:', await js(`hexle.hud.mode + ' underwater=' + hexle.cam.isUnderwater() + ' camY=' + hexle.cam.camera.position.y.toFixed(2)`));
-await js(`document.querySelector('#seaTiles .add').click(); document.querySelector('#deepItems .add').click(); 0`);
+await js(`document.querySelector('#seaTiles .egg').click(); document.querySelector('#deepItems .egg').click(); 0`);
 await shot('dive_ui');
 await js(`hexle.cam.dive(false); 0`); await wait(3000);
 console.log('after surface:', await js(`hexle.hud.mode + ' underwater=' + hexle.cam.isUnderwater() + ' camY=' + hexle.cam.camera.position.y.toFixed(2)`));
+
+// 문제: 정답을 넣으면 타일·아이템 카드가 한 장씩 늘어난다, 오답이면 그대로
+const cardSum = () => js(`Object.values(hexle.invs).flat().reduce((s, i) => s + Object.values(i.counts()).reduce((a, b) => a + b, 0), 0)`);
+const solveQuiz = (wrong) => js(`(() => { const t = document.querySelector('#quiz .q').textContent.replace(' = ?', '').split(' '), a = +t[0], b = +t[2];
+  const r = { '+': a + b, '-': a - b, '×': a * b, '÷': a / b }[t[1]]; const inp = document.querySelector('#quiz input'); inp.value = ${wrong ? 'r + 1' : 'r'};
+  document.querySelector('#quiz form').requestSubmit(); return t.join(' ') + ' → ' + document.querySelector('#quiz .qmsg').textContent; })()`);
+for (const [op, d] of [['+', '1'], ['-', '2'], ['×', '3'], ['÷', '2'], ['rand', 'rand']]) {
+  await js(`(() => { const o = document.querySelector('#quiz .op'), g = document.querySelector('#quiz .digits'); o.value = '${op}'; g.value = '${d}'; o.onchange(); return 0; })()`);
+  const before = await cardSum(); const r = await solveQuiz(false); console.log('quiz', op, d, ':', r, '| cards +' + ((await cardSum()) - before));
+}
+{ const before = await cardSum(); console.log('quiz wrong:', await solveQuiz(true), '| cards +' + ((await cardSum()) - before)); }
+// 합성: 섬 타일 두 장을 넣으면 한 장이 나온다 (가장 적게 가진 종류 중)
+console.log('synth:', await js(`(() => { const inv = hexle.invs.island[0]; inv.set({ grass: 3, forest: 1 }); const el = inv.el;
+  el.querySelector('.synth').click(); const cards = [...el.querySelectorAll('.card')]; cards[0].click(); cards[0].click();
+  const ready = !el.querySelector('.synth').disabled; [...el.querySelectorAll('.card')]; el.querySelector('.synth').click();
+  const c = inv.counts(), total = Object.values(c).reduce((a, b) => a + b, 0); return 'ready=' + ready + ' total=' + total + ' ' + JSON.stringify(c) + ' msg=' + document.getElementById('msg').textContent; })()`));
+await js(`(() => { const el = hexle.invs.island[0].el; el.querySelector('.cancel').click(); return 0; })()`);
+await shot('quiz_ui');
 
 // 저장·복원: 새로고침 후 칸·아이템·카드 수가 같아야 한다
 const before = await summary();
@@ -87,7 +105,7 @@ await js(`hexle.hud.setErase(false); 0`);
 
 // 모바일 레이아웃: 좁은 화면이면 타일/아이템 패널 중 하나만, 전환 버튼으로 바꾼다
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }); await wait(1500);
-await js(`document.querySelector('#landTiles .add').click(); document.querySelector('#landTiles .add').click(); 0`); await wait(300);
+await js(`document.querySelector('#landTiles .egg').click(); document.querySelector('#landTiles .egg').click(); 0`); await wait(300);
 await shot('mobile');
 console.log('mobile:', await js(`JSON.stringify({ narrow: matchMedia('(max-width: 760px)').matches, tilesShown: getComputedStyle(document.getElementById('landTiles')).display !== 'none', itemsShown: getComputedStyle(document.getElementById('islandItems')).display !== 'none', barW: Math.round(document.getElementById('bar').getBoundingClientRect().width) })`));
 await js(`document.querySelector('#landTiles .swap').click(); 0`); await wait(300);

@@ -24,7 +24,25 @@
     .inv .swap { display: none; font-size: 12px; padding: 2px 8px; }
     .inv .fold { font-size: 12px; padding: 1px 8px; }
     .inv.collapsed .add, .inv.collapsed .tabs, .inv.collapsed .cards { display: none; }
-    .inv .add { width: 100%; margin: 2px 0 8px; font-weight: 700; }
+    .inv .row { display: flex; gap: 6px; margin: 2px 0 8px; }
+    .inv .synth { flex: 1; font-weight: 700; }
+    .inv .synth:disabled { opacity: .6; cursor: default; }
+    .inv.synthing { outline: 3px solid #9a6ad8; }
+    .inv.synthing .synth { background: #e6d8ff; }
+    .inv .egg { width: 44px; height: 22px; padding: 0; border: none; background: transparent; cursor: default; }   /* 테스트용 숨은 버튼 */
+    .card u { position: absolute; top: 2px; left: 4px; text-decoration: none; font-size: 11px; font-weight: 700; color: #fff; background: #9a6ad8; border-radius: 8px; padding: 0 5px; }
+    /* 문제 */
+    #quiz { top: 62px; left: 10px; width: 250px; padding: 10px 12px; }
+    #quiz .head { display: flex; align-items: center; gap: 6px; }
+    #quiz .head .title { flex: 1; }
+    #quiz .fold { font-size: 12px; padding: 1px 8px; }
+    #quiz.collapsed .body { display: none; }
+    #quiz .modes { display: flex; gap: 6px; margin: 8px 0 4px; }
+    #quiz select { flex: 1; font: inherit; font-size: 13px; padding: 3px; border: 1px solid #a8865a; border-radius: 6px; background: #fffaf0; color: inherit; }
+    #quiz .q { font-size: 28px; font-weight: 800; margin: 4px 0 8px; white-space: nowrap; }
+    #quiz form { display: flex; gap: 6px; }
+    #quiz input { width: 0; flex: 1; font-size: 20px; padding: 4px 8px; border: 1px solid #a8865a; border-radius: 6px; background: #fffaf0; }
+    #quiz .qmsg { min-height: 18px; margin-top: 6px; font-size: 13px; font-weight: 600; }
     .tabs { display: flex; gap: 4px; margin-bottom: 6px; }
     .tab { flex: 1; padding: 3px 0; font-size: 12px; background: #eadcb4; border-color: #c4a87a; }
     .tab i { font-style: normal; font-size: 11px; color: #8a6a42; }
@@ -61,13 +79,17 @@
       #bar .sep { margin: 0 2px; }
       .inv { left: 8px; right: 8px; bottom: 8px; width: auto; padding: 8px 10px; }
       .inv .swap { display: inline-block; }
-      .inv .add { margin: 0 0 6px; padding: 5px; }
+      .inv .row { margin: 0 0 6px; }
+      #quiz { top: 54px; left: 8px; right: 8px; width: auto; padding: 6px 10px; }
+      #quiz .modes { margin: 6px 0 2px; }
+      #quiz .q { font-size: 22px; margin: 2px 0 6px; }
+      #quiz input { font-size: 18px; }
       .tabs { margin-bottom: 5px; }
       .cards { grid-auto-rows: 58px; height: calc(58px * 2 + 6px); }
       .card { height: 58px; font-size: 11px; gap: 0; }
       .card b { font-size: 20px; }
       .card small { display: none; }
-      #msg { bottom: auto; top: 62px; font-size: 13px; max-width: 90vw; white-space: normal; text-align: center; }
+      #msg { bottom: auto; top: 250px; font-size: 13px; max-width: 90vw; white-space: normal; text-align: center; }
     }
   </style>
 </head>

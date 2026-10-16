@@ -8,6 +8,7 @@ import { createCamera } from './render/camera';
 import { createPostFX } from './render/postfx';
 import { createInventory, type Inventory } from './ui/inventory';
 import { createHud, type Mode } from './ui/hud';
+import { mountQuiz } from './ui/quiz';
 import { setupPlacement, type Selection } from './ui/placement';
 import * as state from './game/state';
 import { canPlace } from './items/index';
@@ -35,7 +36,6 @@ const water = createWater(sunDir, lowEnd ? 512 : 1024);
 const overlay = createOverlay();
 const postfx = createPostFX(renderer, scene, cam.camera);
 scene.add(water.group, terrain, overlay.group, state.group);
-scene.add(lighthouse(state.LIGHTHOUSE.x, state.LIGHTHOUSE.z));
 
 // ── UI ──
 const josa = (w: string, withFinal: string, without: string) => w + ((w.charCodeAt(w.length - 1) - 0xac00) % 28 ? withFinal : without);
@@ -62,15 +62,16 @@ const hud = createHud({
 });
 const TILE_SUB: Record<string, string> = { attach: '섬에 붙여서', island: '바다에 새 섬', sea: '바다 칸' };
 const swap = () => { side = side === 'tile' ? 'item' : 'tile'; layout(); };
+const synthMsg = (name: (k: string) => string) => (a: string, b: string, r: string) => hud.say(`합성: ${name(a)} + ${name(b)} → ${name(r)}!`);
 const tileInv = (id: string, title: string, tabs: typeof TILE_TABS.land | typeof TILE_TABS.sea) => createInventory({
-  id, title, side: 'left', addLabel: '+ 타일 추가', tabs, swapLabel: '아이템 ▸', onSwap: swap, onChange: persist,
+  id, title, side: 'left', tabs, swapLabel: '아이템 ▸', onSwap: swap, onChange: persist, onSynth: synthMsg(k => TILE_INFO[k as Kind].name),
   info: k => ({ ...TILE_INFO[k as Kind], sub: TILE_SUB[TILE_INFO[k as Kind].rule] }),
   roll: () => pickRandom(tabs[0][1]),
   onSelect: k => choose(k ? { type: 'tile', kind: k as Kind } : null),
   onAdd: k => hud.say(`${TILE_INFO[k as Kind].name} 타일을 얻었어요`),
 });
 const itemInv = (id: string, title: string, tabs: typeof ITEM_TABS.island | typeof ITEM_TABS.deep) => createInventory({
-  id, title, side: 'right', addLabel: '+ 아이템 추가', tabs, swapLabel: '◂ 타일', onSwap: swap, onChange: persist,
+  id, title, side: 'right', tabs, swapLabel: '◂ 타일', onSwap: swap, onChange: persist, onSynth: synthMsg(k => ITEM_INFO[k as ItemKind].name),
   info: k => ({ ...ITEM_INFO[k as ItemKind], sub: PLACE_NAME[ITEM_INFO[k as ItemKind].medium] }),
   roll: () => pickRandom(tabs[0][1]),
   onSelect: k => choose(k ? { type: 'item', kind: k as ItemKind } : null),
@@ -149,7 +150,16 @@ if (saved) {
   loading = false;
   persist();
 } else state.refresh();
+scene.add(lighthouse(state.LIGHTHOUSE.x, state.LIGHTHOUSE.z));
 setMode('island');
+
+// 문제: 맞히면 지금 모드(섬/바닷속)의 타일 한 장 + 아이템 한 장
+mountQuiz(() => {
+  const [tiles, items] = invs[hud.mode], t = tiles.roll(), i = items.roll();
+  tiles.add(t);
+  items.add(i);
+  return `${TILE_INFO[t as Kind].name} 타일과 ${josa(ITEM_INFO[i as ItemKind].name, '을', '를')} 얻었어요`;
+});
 
 addEventListener('resize', () => {
   cam.resize();

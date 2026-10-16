@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { centroid, corners, fromWorld, key, mostConnected, neighbors, R, toWorld, type Hex } from '../core/hex';
 import { rng, seedOf } from '../core/noise';
 import { farmInside, heightFast, LAKE_Y, lakeType, roadDist, surfaceAt, volcanoSize } from '../world/terrain';
+import { buildModel } from '../items/models';
 import { barnGeo, eruption, fruitStallGeo, marketStallGeo, palmGeo as PALM } from './extras';
 import { batch, inHex, lumpy, merge, paint, placed, prism, puffs, slope, smokeTex, vc, vcFlat, type Ctx } from './models';
 import type { Kind } from './kinds';
@@ -535,6 +536,26 @@ export function lakeDecor(ctx: Ctx, lakes: Hex[]) {
     }
   }
   ctx.g.add(stones.build(), reeds.build(), lilies.build(), palms.build());
+  // 빙판: 칸마다 배로 미끄러지며 왔다 갔다 하는 펭귄 하나, 구경하는 펭귄 하나
+  for (const h of lakes) {
+    if (lakeType.get(key(h)) !== 'ice') continue;
+    const rnd = rng(seedOf(h) + 93), c = toWorld(h), a = rnd() * Math.PI * 2, dx = Math.cos(a), dz = Math.sin(a), ph = rnd() * 6;
+    const slider = new THREE.Group(), body = buildModel('penguin');
+    body.rotation.z = -1.35;                  // 배를 깔고 엎드린 자세 (머리가 진행 방향)
+    body.position.y = 0.035;
+    slider.add(body);
+    const watcher = buildModel('penguin');
+    const wx = c.x - dz * 0.45, wz = c.z + dx * 0.45;
+    watcher.position.set(wx, LAKE_Y, wz);
+    watcher.rotation.y = Math.atan2(dz, -dx) + Math.PI / 2;
+    ctx.g.add(slider, watcher);
+    ctx.updates.push(t => {
+      const k = Math.sin(t * 0.8 + ph), v = Math.cos(t * 0.8 + ph), dir = v >= 0 ? 1 : -1;
+      slider.position.set(c.x + dx * 0.55 * k, LAKE_Y, c.z + dz * 0.55 * k);
+      slider.rotation.y = Math.atan2(-dz * dir, dx * dir);
+      watcher.rotation.z = Math.sin(t * 3 + ph) * 0.08;   // 뒤뚱뒤뚱
+    });
+  }
 }
 
 export const LAND_CLUSTER: Partial<Record<Kind, (ctx: Ctx, comp: Hex[]) => void>> = {

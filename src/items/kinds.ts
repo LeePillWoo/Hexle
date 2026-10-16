@@ -3,8 +3,9 @@ export type Medium = 'land' | 'lake' | 'sea' | 'seafloor' | 'midwater' | 'air-la
 export type ItemGroup = 'land' | 'water' | 'deep' | 'decor';
 export type ItemKind =
   | 'sheep' | 'cat' | 'cow' | 'chicken' | 'dog' | 'rabbit' | 'fox' | 'horse' | 'pig' | 'deer' | 'bear' | 'penguin' | 'bird' | 'butterfly'
-  | 'fish' | 'duck' | 'swan' | 'frog'
-  | 'shark' | 'boat' | 'raft' | 'dolphin' | 'whale' | 'turtle' | 'buoy' | 'seagull'
+  | 'camel' | 'polarBear' | 'goat' | 'llama' | 'lizard' | 'parrot'
+  | 'fish' | 'duck' | 'swan' | 'frog' | 'flamingo'
+  | 'shark' | 'boat' | 'raft' | 'dolphin' | 'whale' | 'turtle' | 'buoy' | 'seagull' | 'seal'
   | 'school' | 'clownfish' | 'ray' | 'jellyfish' | 'octopus' | 'crab' | 'starfish' | 'seahorse' | 'squid' | 'anglerfish' | 'urchin'
   | 'clam' | 'shell' | 'chest' | 'anchor' | 'amphora' | 'seaweed' | 'kelp' | 'coralPink' | 'coralYellow' | 'coralPurple' | 'lantern';
 
@@ -39,6 +40,12 @@ export const ITEM_INFO: Record<ItemKind, ItemInfo> = {
   deer: land('사슴', '🦌', [0.5, 0.3], 0.15),
   bear: land('곰', '🐻', [0.4, 0.25], 0.08),
   penguin: land('펭귄', '🐧', [0.3, 0.2], 0.1),
+  camel: land('낙타', '🐫', [0.5, 0.3], 0.1),
+  polarBear: land('북극곰', '🐻‍❄️', [0.45, 0.25], 0.08),
+  goat: land('염소', '🐐', [0.3, 0.2], 0.15, { hop: true }),
+  llama: land('라마', '🦙', [0.4, 0.25], 0.1),
+  lizard: land('도마뱀', '🦎', [0.3, 0.15], 0.3),
+  parrot: { name: '앵무새', icon: '🦜', medium: 'air-land', group: 'land', radii: [0.7, 0.5, 0.3], speed: 0.8, y: 'air', off: 1.0, bank: true },
   bird: { name: '새', icon: '🐦', medium: 'air-land', group: 'land', radii: [0.9, 0.6, 0.4], speed: 0.9, y: 'air', off: 1.3, bank: true },
   butterfly: { name: '나비', icon: '🦋', medium: 'air-land', group: 'land', radii: [0.3, 0.2], speed: 0.4, y: 'air', off: 0.22, bob: [5, 0.04] },
   // 호수
@@ -46,6 +53,7 @@ export const ITEM_INFO: Record<ItemKind, ItemInfo> = {
   duck: lake('오리', '🦆', [0.5, 0.3, 0.15], 0.15, 0, { bob: [1.6, 0.012] }),
   swan: lake('백조', '🦢', [0.6, 0.35, 0.2], 0.1, 0, { bob: [1.3, 0.012] }),
   frog: lake('개구리', '🐸', [0], 0, 0, { bob: [2.2, 0.01] }),
+  flamingo: lake('플라밍고', '🦩', [0.35, 0.2], 0.05, 0),
   // 바다 위
   shark: sea('상어', '🦈', [1.5, 1, 0.5], 0.35, -0.08, { minDepth: 0.5 }),
   boat: sea('돛단배', '⛵', [1.2, 0.7, 0.3], 0.08, 0, { bob: [1.5, 0.02] }),
@@ -54,6 +62,7 @@ export const ITEM_INFO: Record<ItemKind, ItemInfo> = {
   whale: sea('고래', '🐋', [2.2, 1.6, 1.0], 0.25, -0.12, { minDepth: 0.9, bob: [0.8, 0.02] }),
   turtle: sea('바다거북', '🐢', [0.9, 0.6, 0.3], 0.12, -0.04, { bob: [1.1, 0.01] }),
   buoy: sea('부표', '🛟', [0], 0, -0.04, { bob: [1.4, 0.03], light: 0xffd060 }),
+  seal: sea('물범', '🦭', [0.8, 0.5, 0.3], 0.15, -0.03, { bob: [1.2, 0.015] }),
   seagull: { name: '갈매기', icon: '🕊️', medium: 'air-sea', group: 'water', radii: [1.2, 0.8, 0.5], speed: 0.8, y: 'air', off: 1.1, bank: true },
   // 바닷속 생물
   school: deep('물고기 떼', '🐠', 'midwater', [0], 0),
