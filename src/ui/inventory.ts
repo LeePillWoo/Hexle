@@ -1,6 +1,7 @@
 // 인벤토리 패널 하나에 타일·아이템 섹션을 탭으로. 머리줄: [타일][아이템] 탭 · 투명 버튼(이스터에그) · 접기 화살표.
 // 섹션마다: 같은 종류는 한 장에 ×개수, 분류 탭, 5열×4줄 고정 그리드.
 // 합성: 버튼 한 번에 가장 많이 가진 카드 두 장을 써서, 가장 적게 가진 종류(없는 것 포함) 중 하나를 얻는다.
+//  가장 많은 종류와 가장 적은 종류의 차이가 1 이하로 고르게 모이면 더 합성하지 않는다.
 // 이스터에그: 접기 화살표 왼쪽 빈 곳을 누르면 지금 열린 탭에 무작위 카드 한 장.
 export type SectionOpts = {
   id: string; label: string; cls: string;
@@ -28,6 +29,8 @@ export function createDock(o: { id: string; sections: SectionOpts[]; onChange?: 
     const have = new Map<string, number>();
     let tab = 0, selected: string | null = null;
     const all = () => s.tabs[0][1], total = () => [...have.values()].reduce((a, b) => a + b, 0);
+    const spread = () => { const c = all().map(k => have.get(k) ?? 0); return Math.max(...c) - Math.min(...c); };
+    const canFuse = () => total() >= 2 && spread() >= 2;
     function dec(k: string) { const n = (have.get(k) ?? 0) - 1; if (n > 0) have.set(k, n); else have.delete(k); }
     const sec = {
       id: s.id, opts: s, roll: s.roll, total,
@@ -52,7 +55,7 @@ export function createDock(o: { id: string; sections: SectionOpts[]; onChange?: 
       fuse() {
         // 가장 많은 종류부터 두 장 (한 종류가 2장 이상이면 그것 두 장). 수가 같으면 무작위
         const owned = [...have].sort((x, y) => y[1] - x[1] || Math.random() - 0.5);
-        if (total() < 2) return;
+        if (!canFuse()) return;
         const a = owned[0][0], b = owned[0][1] >= 2 ? a : owned[1][0];
         dec(a); dec(b);
         if (selected && !have.get(selected)) sec.select(null);
@@ -63,7 +66,8 @@ export function createDock(o: { id: string; sections: SectionOpts[]; onChange?: 
         s.onSynth?.(a, b, result);
       },
       renderBody() {
-        synthBtn.disabled = total() < 2;
+        synthBtn.disabled = !canFuse();
+        synthBtn.textContent = total() >= 2 && !canFuse() ? '⚗️ 합성 완료 (고르게 모였어요)' : '⚗️ 합성 (많은 카드 2장 → 1장)';
         tabsEl.replaceChildren(...s.tabs.map(([name, kinds], i) => {
           const b = document.createElement('button');
           b.className = 'tab' + (i === tab ? ' on' : '');

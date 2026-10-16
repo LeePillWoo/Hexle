@@ -81,6 +81,8 @@ for (const [op, d] of [['+', '1'], ['-', '2'], ['×', '3'], ['÷', '2'], ['rand'
 // 합성: 가장 많은 카드(초원 3장) 두 장을 써서, 가장 적게 가진 종류 중 하나가 나온다
 console.log('synth:', await js(`(() => { const inv = hexle.invs.island[0]; inv.set({ grass: 3, forest: 1 }); hexle.docks.island.el.querySelector('.synth').click();
   const c = inv.counts(); return JSON.stringify(c) + ' msg=' + document.getElementById('msg').textContent; })()`));
+console.log('synth balanced:', await js(`(() => { const inv = hexle.invs.island[0]; inv.set({ grass: 3, forest: 1 }); const b = hexle.docks.island.el.querySelector('.synth');
+  let n = 0; while (!b.disabled && n < 20) { b.click(); n++; } return 'fused ' + n + 'x → ' + JSON.stringify(inv.counts()) + ' label=' + b.textContent; })()`));
 await js(`hexle.persist(); 0`);
 console.log('synth one card:', await js(`(() => { const inv = hexle.invs.island[0]; inv.set({ grass: 1 }); return 'disabled=' + (hexle.docks.island.sections[0].renderBody(), hexle.docks.island.el.querySelector('.synth').disabled); })()`));
 await js(`hexle.persist(); 0`);
