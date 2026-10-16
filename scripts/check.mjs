@@ -75,7 +75,7 @@ const after = await summary();
 console.log('persist:', before === after ? 'ok ' + after : 'MISMATCH ' + before + ' vs ' + after);
 
 // 지우기: 소(아이템)와 밭(타일)을 탭해서 지우면 카드로 돌아온다
-await view(1.5, 0.3, 0, 1.5, 12, 9); await wait(1500);
+await view(1.5, 0.3, 0, 1.5, 12, 9); await wait(2500);   // 카메라가 멈춘 뒤 좌표를 잰다
 await js(`hexle.hud.setErase(true); 0`);
 const cow = await js(`(() => { const it = hexle.state.items.find(i => i.kind === 'cow'); return [it.obj.position.x, it.obj.position.y, it.obj.position.z]; })()`);
 let [sx, sy] = await screenOf(...cow); sy -= 10;   // 발이 아니라 몸통을 탭 (모델에 직접 맞게)

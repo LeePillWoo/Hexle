@@ -2,7 +2,7 @@
 import { clusters, type Hex } from '../core/hex';
 
 export type LandKind = 'camp' | 'grass' | 'forest' | 'mountain' | 'beach' | 'farm' | 'flower' | 'house'
-  | 'volcano' | 'castle' | 'orchard' | 'snow' | 'islet';
+  | 'volcano' | 'castle' | 'orchard' | 'snow' | 'desert' | 'islet';
 export type SeaKind = 'reef' | 'kelp' | 'palace' | 'wreck' | 'ruins' | 'trench' | 'shells';
 export type Kind = LandKind | SeaKind;
 export type Cell = { hex: Hex; kind: Kind };
@@ -22,6 +22,7 @@ export const TILE_INFO: Record<Kind, { name: string; icon: string; rule: Rule }>
   castle: { name: '성', icon: '🏰', rule: 'attach' },
   orchard: { name: '과수원', icon: '🍎', rule: 'attach' },
   snow: { name: '설원', icon: '❄️', rule: 'attach' },
+  desert: { name: '사막', icon: '🏜️', rule: 'attach' },
   islet: { name: '새 섬', icon: '🏝️', rule: 'island' },
   reef: { name: '산호초', icon: '🪸', rule: 'sea' },
   kelp: { name: '해초숲', icon: '🍃', rule: 'sea' },
@@ -44,7 +45,7 @@ export const cellsOf = (cells: Cell[], kind: Kind) => clusters(cells.filter(c =>
 export const TILE_TABS = {
   land: [
     ['전체', LAND_KINDS], ['자연', ['grass', 'forest', 'flower', 'orchard']],
-    ['지형', ['mountain', 'volcano', 'beach', 'snow', 'islet']], ['마을', ['farm', 'house', 'castle', 'camp']],
+    ['지형', ['mountain', 'volcano', 'beach', 'snow', 'desert', 'islet']], ['마을', ['farm', 'house', 'castle', 'camp']],
   ],
   sea: [['전체', SEA_KINDS], ['생태', ['reef', 'kelp', 'shells']], ['건축', ['palace', 'ruins', 'wreck']], ['지형', ['trench']]],
 } as const satisfies Record<string, readonly (readonly [string, readonly Kind[]])[]>;

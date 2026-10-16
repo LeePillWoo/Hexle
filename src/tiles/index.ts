@@ -5,13 +5,14 @@ import { cellsOf, type Cell, type Kind } from './kinds';
 import type { Ctx } from './models';
 import { LAND_CLUSTER, LAND_SINGLE, lakeDecor } from './land';
 import { SEA_CLUSTER } from './sea';
+import { EXTRA_CLUSTER } from './extras';
 
 export { lighthouse } from './land';
 
 export function decorateAll(cells: Cell[], lakes: Hex[]) {
   const byKey = new Map(cells.map(c => [key(c.hex), c.kind]));
   const ctx: Ctx = { kindAt: h => byKey.get(key(h)), g: new THREE.Group(), updates: [] };
-  for (const [kind, fn] of Object.entries({ ...LAND_CLUSTER, ...SEA_CLUSTER })) for (const comp of cellsOf(cells, kind as Kind)) fn!(ctx, comp);
+  for (const map of [LAND_CLUSTER, SEA_CLUSTER, EXTRA_CLUSTER]) for (const [kind, fn] of Object.entries(map)) for (const comp of cellsOf(cells, kind as Kind)) fn!(ctx, comp);
   for (const c of cells) LAND_SINGLE[c.kind]?.(ctx, c.hex);
   lakeDecor(ctx, lakes);
   ctx.g.userData.update = (t: number) => { for (const u of ctx.updates) u(t); };

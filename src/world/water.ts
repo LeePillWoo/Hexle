@@ -111,6 +111,19 @@ const lake = new THREE.Mesh(new THREE.PlaneGeometry(2 * HALF, 2 * HALF).rotateX(
       a = max(a, fr * 0.8);
       float foam = 1.0 - smoothstep(0.0, 0.04, depth);                       // 물가 테두리
       col = mix(col, vec3(1.0), foam * 0.5);
+      vec4 f3 = field3At(vW.xz);
+      // 오아시스: 더 맑은 하늘빛 청록
+      col = mix(col, mix(vec3(0.1, 0.72, 0.75), vec3(0.0, 0.42, 0.55), smoothstep(0.0, 0.6, depth)) + c * 0.08, f3.a * 0.85);
+      // 빙판: 불투명한 얼음 + 금 + 눈가루
+      if (f3.b > 0.5) {
+        float crack = 1.0 - smoothstep(0.0, 0.025, vEdge(vW.xz * 2.2, 0.0));
+        float crack2 = 1.0 - smoothstep(0.0, 0.02, vEdge(vW.xz * 5.0 + 3.0, 0.0));
+        vec3 ice = mix(vec3(0.72, 0.9, 1.0), vec3(0.92, 0.98, 1.0), fbm(vW.xz * 1.3)) * 1.15;
+        ice = mix(ice, vec3(0.4, 0.68, 0.88), max(crack * 0.7, crack2 * 0.35));
+        ice = mix(ice, vec3(1.15), smoothstep(0.55, 0.72, fbm(vW.xz * 3.0)) * 0.7);
+        ice += pow(max(0.0, 1.0 - abs(normalize(cameraPosition - vW).y)), 3.0) * 0.15;
+        col = ice; a = 0.94;
+      }
       gl_FragColor = vec4(col, a);
       #include <tonemapping_fragment>
       #include <colorspace_fragment>

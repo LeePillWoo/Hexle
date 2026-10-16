@@ -12,8 +12,8 @@ export function canPlace(kind: ItemKind, x: number, z: number) {
   const info = ITEM_INFO[kind], s = surfaceAt(x, z), depth = s.water - s.h;
   const flat = () => Math.abs(surfaceAt(x + 0.12, z).h - surfaceAt(x - 0.12, z).h) < 0.15 && Math.abs(surfaceAt(x, z + 0.12).h - surfaceAt(x, z - 0.12).h) < 0.15;
   switch (info.medium) {
-    case 'land': case 'air-land': return depth < -0.12 && flat();
-    case 'lake': return s.lake && depth > 0.15;
+    case 'land': case 'air-land': return (depth < -0.12 && flat()) || s.ice;   // 빙판 위에도 설 수 있다
+    case 'lake': return s.lake && !s.ice && depth > 0.15;
     case 'sea': case 'air-sea': return !s.lake && depth > (info.minDepth ?? 0.3);
     case 'seafloor': return !s.lake && depth > (info.minDepth ?? 0.45) && flat();
     case 'midwater': return !s.lake && depth > (info.minDepth ?? 0.7);
@@ -45,7 +45,7 @@ export function updateItem(it: Item, t: number) {
   const a = it.r > 0 ? t * info.speed / Math.max(it.r, 0.2) * 0.3 + it.phase : it.phase;
   const x = it.x + Math.cos(a) * it.r, z = it.z + Math.sin(a) * it.r, s = surfaceAt(x, z), depth = s.water - s.h;
   let y = info.y === 'surface' ? s.water + info.off
-    : info.y === 'floor' ? s.h + info.off
+    : info.y === 'floor' ? (s.ice ? Math.max(s.h, s.water) : s.h) + info.off
     : info.y === 'mid' ? s.water - depth * info.off
     : Math.max(s.h, s.water) + info.off;
   if (info.bob) y += Math.sin(t * info.bob[0] + it.phase) * info.bob[1];

@@ -4,7 +4,8 @@
 import * as THREE from 'three';
 import { centroid, corners, fromWorld, key, mostConnected, neighbors, R, toWorld, type Hex } from '../core/hex';
 import { rng, seedOf } from '../core/noise';
-import { farmInside, heightFast, LAKE_Y, roadDist, surfaceAt, volcanoSize } from '../world/terrain';
+import { farmInside, heightFast, LAKE_Y, lakeType, roadDist, surfaceAt, volcanoSize } from '../world/terrain';
+import { barnGeo, eruption, fruitStallGeo, marketStallGeo, palmGeo as PALM } from './extras';
 import { batch, inHex, lumpy, merge, paint, placed, prism, puffs, slope, smokeTex, vc, vcFlat, type Ctx } from './models';
 import type { Kind } from './kinds';
 
@@ -14,9 +15,6 @@ const pineGeo = merge(
   paint(new THREE.CylinderGeometry(0.03, 0.05, 0.32, 8).translate(0, 0.16, 0), 0x5a3a22),
   ...[0, 1, 2, 3, 4].map(i => paint(new THREE.ConeGeometry(0.32 - i * 0.055, 0.36, 12).translate(0, 0.3 + i * 0.17, 0), GREENS[i])),
 );
-// 눈 덮인 침엽수: 층마다 흰 눈 모자
-const snowPineGeo = merge(pineGeo.clone(),
-  ...[0, 1, 2, 3, 4].map(i => paint(new THREE.ConeGeometry(0.33 - i * 0.055, 0.1, 12).translate(0, 0.44 + i * 0.17, 0), 0xf4f7fb)));
 const broadleafGeo = merge(
   paint(new THREE.CylinderGeometry(0.03, 0.05, 0.4, 8).translate(0, 0.2, 0), 0x5a3a22),
   paint(new THREE.IcosahedronGeometry(0.22, 1).translate(0, 0.55, 0), 0x8fbf3a),     // 밝은 연두 활엽수
@@ -44,7 +42,6 @@ const deadTreeGeo = merge(
   ...[0, 1, 2].map(i => paint(new THREE.CylinderGeometry(0.008, 0.015, 0.18, 5).translate(0, 0.09, 0).rotateZ(0.7).rotateY(i * 2.1).translate(0, 0.25 + i * 0.05, 0), 0x3a2e28)),
 );
 const rockGeo = paint(lumpy(new THREE.IcosahedronGeometry(1, 1), 0.12), 0x9a968c);
-const iceGeo = paint(lumpy(new THREE.IcosahedronGeometry(1, 1), 0.15), 0xcfe8f8);
 const bushGeo = merge(
   paint(new THREE.IcosahedronGeometry(0.09, 1), 0x3f7f35),
   paint(new THREE.IcosahedronGeometry(0.07, 1).translate(0.08, -0.01, 0.03), 0x4a8c3c),
@@ -210,22 +207,6 @@ const wallGeo = merge(
   paint(new THREE.BoxGeometry(R, 0.57, 0.1).translate(0, 0.135, 0), 0x9a968e),
   ...[-0.45, -0.27, -0.09, 0.09, 0.27, 0.45].map(x => paint(new THREE.BoxGeometry(0.09, 0.08, 0.12).translate(x, 0.46, 0), 0x8a8680)),
 );
-// 설원: 눈사람, 이글루
-const snowmanGeo = merge(
-  paint(new THREE.SphereGeometry(0.11, 12, 10).translate(0, 0.1, 0), 0xf4f7fb), paint(new THREE.SphereGeometry(0.08, 12, 10).translate(0, 0.25, 0), 0xf4f7fb),
-  paint(new THREE.SphereGeometry(0.06, 12, 10).translate(0, 0.36, 0), 0xf4f7fb),
-  paint(new THREE.ConeGeometry(0.012, 0.06, 6).rotateZ(-Math.PI / 2).translate(0.08, 0.36, 0), 0xf08a2a),
-  ...[0.02, -0.02].map(z => paint(new THREE.SphereGeometry(0.008, 5, 4).translate(0.05, 0.38, z), 0x2a2a2a)),
-  ...[0.22, 0.27].map(y => paint(new THREE.SphereGeometry(0.008, 5, 4).translate(0.075, y, 0), 0x2a2a2a)),
-  paint(new THREE.CylinderGeometry(0.045, 0.045, 0.07, 10).translate(0, 0.43, 0), 0x2a2a2a), paint(new THREE.CylinderGeometry(0.075, 0.075, 0.01, 10).translate(0, 0.4, 0), 0x2a2a2a),
-  ...[1, -1].map(s => paint(new THREE.CylinderGeometry(0.006, 0.006, 0.16, 4).rotateZ(s * 1.2).translate(0, 0.27, s * 0.12), 0x5a3a22)),
-);
-const iglooGeo = merge(
-  paint(new THREE.SphereGeometry(0.34, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0xeef3f8),
-  paint(new THREE.SphereGeometry(0.14, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.9, 1.3).translate(0, 0, 0.32), 0xe4eaf0),
-  paint(new THREE.BoxGeometry(0.1, 0.1, 0.02).translate(0, 0.05, 0.5), 0x2a2e36),
-);
-
 // ── 배치 도우미 ──
 const neighborCount = (ctx: Ctx, h: Hex, kind: Kind) => neighbors(h).filter(n => ctx.kindAt(n) === kind).length;
 
@@ -327,7 +308,9 @@ function gridOf(comp: Hex[], seed: number) {
 function farm(ctx: Ctx, comp: Hex[]) {
   const { rnd, ang, ext, c, at } = gridOf(comp, seedOf(comp[0]) + 11);
   const wheat = batch(wheatGeo), sprouts = batch(sproutGeo), cabbage = batch(cabbageGeo);
-  const inside = (x: number, z: number) => farmInside(x, z) > 0.16 && slope(x, z) < 0.6;
+  const barn = comp.length >= 4 ? toWorld(mostConnected(comp)) : null;
+  if (barn) ctx.g.add(placed(barnGeo, barn.x - 0.1, heightFast(barn.x - 0.1, barn.z), barn.z, 1.15, ang + Math.PI / 2));
+  const inside = (x: number, z: number) => farmInside(x, z) > 0.16 && slope(x, z) < 0.6 && (!barn || Math.hypot(x - barn.x, z - barn.z) > 0.75);
   for (let v = -ext; v <= ext; v += 0.17) {
     const band = Math.floor((v + ext) / 0.68) % 3;                       // 0 밀, 1 양배추, 2 어린 싹
     const [target, gap] = band === 0 ? [wheat, 0.045] : band === 1 ? [cabbage, 0.11] : [sprouts, 0.06];
@@ -349,15 +332,17 @@ function farm(ctx: Ctx, comp: Hex[]) {
     const w = toWorld(h), x = w.x + 0.55, z = w.z - 0.3;
     if (heightFast(x, z) > 0.4) ctx.g.add(placed(i % 2 ? haystackGeo : baleGeo, x, heightFast(x, z), z, 1, rnd() * 6));
   });
-  if (comp.length >= 3) ctx.g.add(placed(scarecrowGeo, c.x, heightFast(c.x, c.z), c.z, 1.2, ang));
+  if (comp.length >= 3 && (!barn || Math.hypot(c.x - barn.x, c.z - barn.z) > 0.8)) ctx.g.add(placed(scarecrowGeo, c.x, heightFast(c.x, c.z), c.z, 1.2, ang));
 }
 
 // 과수원: 열 맞춘 과일나무, 바구니, 큰 과수원엔 사다리
 function orchard(ctx: Ctx, comp: Hex[]) {
   const { rnd, ext, at } = gridOf(comp, seedOf(comp[0]) + 71), trees = batch(fruitTreeGeo, vcFlat);
+  const stand = comp.length >= 3 ? toWorld(mostConnected(comp)) : null;
+  if (stand) ctx.g.add(placed(fruitStallGeo, stand.x, heightFast(stand.x, stand.z), stand.z, 1.2, rnd() * 6));
   for (let v = -ext; v <= ext; v += 0.42) for (let u = -ext; u <= ext; u += 0.42) {
     const p = at(u, v), x = p.x + (rnd() - 0.5) * 0.06, z = p.z + (rnd() - 0.5) * 0.06, y = heightFast(x, z);
-    if (ctx.kindAt(fromWorld(x, z)) !== 'orchard' || y < 0.4 || slope(x, z) > 0.6) continue;
+    if (ctx.kindAt(fromWorld(x, z)) !== 'orchard' || y < 0.4 || slope(x, z) > 0.6 || (stand && Math.hypot(x - stand.x, z - stand.z) < 0.4)) continue;
     trees.push(x, y - 0.01, z, 0.85 + rnd() * 0.3, rnd() * 6, [0xffffff, 0xeef8e4, 0xe4ffdc][Math.floor(rnd() * 3)]);
   }
   ctx.g.add(trees.build());
@@ -380,6 +365,11 @@ function village(ctx: Ctx, comp: Hex[]) {
     }
     if (center && h === center) {
       ctx.g.add(placed(wellGeo, c.x, heightFast(c.x, c.z), c.z, 1.1));
+      if (comp.length >= 4) for (let i = 0; i < 4; i++) {
+        const a = i * Math.PI / 2 + Math.PI / 4, x = c.x + Math.cos(a) * 0.55, z = c.z + Math.sin(a) * 0.55;
+        if (comp.length >= 5 && z < c.z - 0.2) continue;   // 교회 자리
+        ctx.g.add(placed(marketStallGeo[i], x, heightFast(x, z), z, 1, Math.atan2(c.x - x, c.z - z)));
+      }
       if (comp.length >= 5) { const x = c.x - 0.15, z = c.z - 0.62; ctx.g.add(placed(churchGeo, x, heightFast(x, z), z, 1.1, 0)); }
       continue;
     }
@@ -458,6 +448,7 @@ function volcanoDecor(ctx: Ctx, comp: Hex[]) {
   ctx.g.add(light);
   ctx.updates.push(puffs(ctx.g, { x: cx, y: y + 0.15, z: cz, n: 16, color: 0x6a6a6a, size: [0.35, 1.8], rise: 3.5, drift: 0.6, speed: 0.1, tex: smokeTex, opacity: 0.5, spread: crater }));
   ctx.updates.push(t => { lavaMat.emissiveIntensity = 2.2 + Math.sin(t * 2.1) * 0.5; });
+  eruption(ctx, cx, cz, crater, seedOf(comp[0]) + 901, light);
   const rocks = batch(rockGeo, vcFlat), dead = batch(deadTreeGeo, vcFlat);
   for (const h of comp) {
     const rnd = rng(seedOf(h) + 31), c = toWorld(h);
@@ -469,23 +460,6 @@ function volcanoDecor(ctx: Ctx, comp: Hex[]) {
     }
   }
   ctx.g.add(rocks.build(), dead.build());
-}
-
-// 설원: 눈 덮인 침엽수, 얼음, 눈사람. 2칸 이상이면 가운데 이글루
-function snowDecor(ctx: Ctx, comp: Hex[]) {
-  const pines = batch(snowPineGeo, vcFlat), ice = batch(iceGeo, vcFlat), center = comp.length >= 2 ? mostConnected(comp) : undefined;
-  comp.forEach((h, idx) => {
-    const rnd = rng(seedOf(h) + 81), c = toWorld(h);
-    for (let i = 0; i < 10; i++) {
-      const p = inHex(rnd, 0.06), x = c.x + p.x, z = c.z + p.z, y = heightFast(x, z);
-      if (y < 0.4 || slope(x, z) > 0.8 || (h === center && Math.hypot(p.x, p.z) < 0.5)) continue;
-      if (i < 7) pines.push(x, y - 0.02, z, 0.7 + rnd() * 0.4, rnd() * 6);
-      else ice.push(x, y, z, 0.05 + rnd() * 0.08, rnd() * 6);
-    }
-    if (h === center) ctx.g.add(placed(iglooGeo, c.x, heightFast(c.x, c.z), c.z, 1, rnd() * 6));
-    else if (idx % 2 === 0) { const x = c.x + 0.35, z = c.z + 0.2; if (heightFast(x, z) > 0.4) ctx.g.add(placed(snowmanGeo, x, heightFast(x, z), z, 1, rnd() * 6)); }
-  });
-  ctx.g.add(pines.build(), ice.build());
 }
 
 function mountainDecor(ctx: Ctx, comp: Hex[]) {
@@ -545,26 +519,28 @@ function camp(ctx: Ctx, h: Hex) {
 // 호숫가: 물가를 따라 돌·갈대, 물 위엔 연잎
 export function lakeDecor(ctx: Ctx, lakes: Hex[]) {
   if (!lakes.length) return;
-  const stones = batch(rockGeo, vcFlat), reeds = batch(reedGeo), lilies = batch(lilyGeo);
+  // 일반 호수: 갈대·돌·연잎 / 빙판: 눈 쌓인 돌만 / 오아시스: 둘레에 야자수, 갈대·연잎
+  const stones = batch(rockGeo, vcFlat), reeds = batch(reedGeo), lilies = batch(lilyGeo), palms = batch(PALM, vcFlat);
   for (const h of lakes) {
-    const rnd = rng(seedOf(h) + 91), c = toWorld(h);
+    const rnd = rng(seedOf(h) + 91), c = toWorld(h), type = lakeType.get(key(h)) ?? 'water';
     for (let i = 0; i < 40; i++) {
       const p = inHex(rnd, -0.4), x = c.x + p.x, z = c.z + p.z, s = surfaceAt(x, z), d = s.h - LAKE_Y;
       if (!s.lake && d > 0.2) continue;
       if (d > -0.02 && d < 0.12) {
-        if (rnd() < 0.55) reeds.push(x, s.h, z, 0.8 + rnd() * 0.5, rnd() * 6);
-        else stones.push(x, s.h, z, 0.04 + rnd() * 0.06, rnd() * 6);
-      } else if (s.lake && d < -0.12 && rnd() < 0.25) lilies.push(x, LAKE_Y + 0.004, z, 0.6 + rnd() * 0.7, rnd() * 6);
+        if (type === 'ice') { if (rnd() < 0.4) stones.push(x, s.h, z, 0.04 + rnd() * 0.06, rnd() * 6, 0xe8eef4); }
+        else if (type === 'oasis' && rnd() < 0.25) palms.push(x, s.h, z, 0.75 + rnd() * 0.35, rnd() * 6);
+        else if (rnd() < 0.55) reeds.push(x, s.h, z, 0.8 + rnd() * 0.5, rnd() * 6);
+        else stones.push(x, s.h, z, 0.04 + rnd() * 0.06, rnd() * 6, type === 'oasis' ? 0xc08a5a : 0x9a968c);
+      } else if (type !== 'ice' && s.lake && d < -0.12 && rnd() < 0.25) lilies.push(x, LAKE_Y + 0.004, z, 0.6 + rnd() * 0.7, rnd() * 6);
     }
   }
-  ctx.g.add(stones.build(), reeds.build(), lilies.build());
+  ctx.g.add(stones.build(), reeds.build(), lilies.build(), palms.build());
 }
 
 export const LAND_CLUSTER: Partial<Record<Kind, (ctx: Ctx, comp: Hex[]) => void>> = {
-  forest, flower: meadow, farm, orchard, house: village, castle, mountain: mountainDecor, volcano: volcanoDecor, snow: snowDecor,
+  forest, flower: meadow, farm, orchard, house: village, castle, mountain: mountainDecor, volcano: volcanoDecor,
 };
-export const LAND_SINGLE: Partial<Record<Kind, (ctx: Ctx, h: Hex) => void>> = { grass: grassDecor, beach: h => h, camp, islet };
-LAND_SINGLE.beach = (ctx, h) => beachDecor(ctx, h);
+export const LAND_SINGLE: Partial<Record<Kind, (ctx: Ctx, h: Hex) => void>> = { grass: grassDecor, camp, islet };
 
 export function lighthouse(x: number, z: number) {
   const y = heightFast(x, z), b = y + 0.15;

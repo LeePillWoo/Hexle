@@ -65,9 +65,32 @@ function volcano(x: number, z: number) {
   }
   return { h, dark };
 }
-// 해변·새 섬: 낮은 모래땅
-let beaches: Pt[] = [];
-const beach = (x: number, z: number) => { let b = 0; for (const c of beaches) b = Math.max(b, ss(1.2, 0.4, Math.hypot(x - c.x, z - c.z))); return -0.3 * b; };
+// 묶음 안쪽 거리(안쪽 양수): 같은 종류 칸 안이면 "다른 육지 칸까지", 밖이면 "가장 가까운 그 종류 칸까지"(음수).
+// 바다·호수 쪽 변은 경계로 치지 않는다 → 해안 쪽에 턱이 생기지 않는다
+type Region = { set: Set<string>; cells: Pt[]; ring: Pt[] };
+const emptyRegion = (): Region => ({ set: new Set(), cells: [], ring: [] });
+function regionS(r: Region, x: number, z: number) {
+  if (!r.cells.length) return -10;
+  return r.set.has(key(fromWorld(x, z))) ? (r.ring.length ? minSdf(x, z, r.ring) : 10) : -minSdf(x, z, r.cells);
+}
+// 모래사장·새 섬: 묶음 전체가 이어진 낮은 모래땅. 높이를 깎는 게 아니라 0.28 로 눌러서,
+// 바다 쪽은 원래 해안 단면을 따라 완만하게 물속으로 들어간다 (깎으면 해변이 물에 잠겨 거품에 덮인다)
+let beachR = emptyRegion();
+function beach(x: number, z: number) {
+  const b = regionS(beachR, x, z);
+  return { cap: 0.28 + (fbm(x * 1.2, z * 1.2) - 0.5) * 0.06, k: ss(-0.15, 0.35, b), mask: ss(-0.12, 0.15, b) };
+}
+// 사막: 이어질수록 높아지는 모래 언덕
+let desertR = emptyRegion();
+function desert(x: number, z: number) {
+  const d = regionS(desertR, x, z);
+  if (d < -0.5) return { h: 0, mask: 0 };
+  let mass = 0;
+  for (const c of desertR.cells) { const k = Math.hypot(x - c.x, z - c.z); if (k < 3) mass += ss(3, 0, k); }
+  const wx = x + fbm(x * 0.4, z * 0.4) * 2.5;
+  const dune = Math.pow(0.5 + 0.5 * Math.sin(wx * 1.6 + z * 0.7), 2.2) * (0.6 + 0.4 * fbm(x * 0.9, z * 0.9));
+  return { h: ss(0, 0.6, d) * dune * 0.06 * Math.min(4, 1 + mass), mask: ss(-0.12, 0.2, d) };
+}
 // 설원·성 바닥 마스크
 let snows: Pt[] = [], castles: Pt[] = [];
 const snowAt = (x: number, z: number) => { let s = 0; for (const c of snows) s = Math.max(s, ss(0.3, -0.15, hexSdf(x, z, c.x, c.z))); return s; };
@@ -115,24 +138,28 @@ function sample(x: number, z: number) {
   const n = wobble(x, z), s = seaS(x, z) + n, sea = seaH(s, x, z), lake = lakeH(lakeS(x, z) + n, x, z);
   const inland = ss(0.1, -0.7, s), onLand = ss(-0.15, -0.45, s);   // 해안 가까이에선 산·흙 효과를 줄인다
   const v = volcano(x, z);
-  const h = Math.min(sea, lake) + (mountain(x, z) + v.h) * inland + beach(x, z);
+  const b = beach(x, z), ds = desert(x, z);
+  const h0 = Math.min(sea, lake) + (mountain(x, z) + v.h + ds.h) * inland;
+  const h = h0 + (Math.min(h0, b.cap) - h0) * b.k;
   const sf = seaFloor(h, x, z, s);
   return {
-    h: sf.h, s, inLake: lake < sea, dirt: dirt(x, z) * onLand,
+    h: sf.h, s, inLake: lake < sea, dirt: dirt(x, z) * onLand, sand: b.mask, desert: ds.mask,
     reef: sf.reef, paved: Math.max(sf.paved, castleAt(x, z) * onLand), dark: Math.max(sf.dark, v.dark * inland), snow: snowAt(x, z) * onLand,
   };
 }
 
 // ── GPU 공유: field(높이·바다 해안거리·호수 마스크·흙), field2(산호 모래·돌바닥·현무암·눈) + 시간 ──
-const fieldData = new Uint8Array(N * N * 4), field2Data = new Uint8Array(N * N * 4);
-const fieldTex = new THREE.DataTexture(fieldData, N, N), field2Tex = new THREE.DataTexture(field2Data, N, N);
-fieldTex.magFilter = fieldTex.minFilter = field2Tex.magFilter = field2Tex.minFilter = THREE.LinearFilter;
-export const shared = { time: { value: 0 }, field: { value: fieldTex }, field2: { value: field2Tex } };
+// field3(모래사장·사막·빙판·오아시스)
+const fieldData = new Uint8Array(N * N * 4), field2Data = new Uint8Array(N * N * 4), field3Data = new Uint8Array(N * N * 4);
+const fieldTex = new THREE.DataTexture(fieldData, N, N), field2Tex = new THREE.DataTexture(field2Data, N, N), field3Tex = new THREE.DataTexture(field3Data, N, N);
+for (const t of [fieldTex, field2Tex, field3Tex]) t.magFilter = t.minFilter = THREE.LinearFilter;
+export const shared = { time: { value: 0 }, field: { value: fieldTex }, field2: { value: field2Tex }, field3: { value: field3Tex } };
 
 // time 은 재질마다 선언 여부가 달라서 여기 넣지 않는다
 export const FIELD_GLSL = /* glsl */`
 uniform sampler2D field;
 uniform sampler2D field2;
+uniform sampler2D field3;
 #define LAKE_Y ${LAKE_Y.toFixed(2)}
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p) {
@@ -148,6 +175,7 @@ float fbm(vec2 p) {
 vec2 fieldUv(vec2 xz) { return ((xz + ${HALF.toFixed(1)}) / ${(2 * HALF).toFixed(1)} * ${(N - 1).toFixed(1)} + 0.5) / ${N.toFixed(1)}; }
 vec4 fieldAt(vec2 xz) { return texture2D(field, fieldUv(xz)); }
 vec4 field2At(vec2 xz) { return texture2D(field2, fieldUv(xz)); }
+vec4 field3At(vec2 xz) { return texture2D(field3, fieldUv(xz)); }
 float landH(vec2 xz) { return fieldAt(xz).r * ${H_RANGE.toFixed(2)} + (${H_MIN.toFixed(2)}); }
 float landS(vec2 xz) { return fieldAt(xz).g * ${S_RANGE.toFixed(2)} + (${S_MIN.toFixed(2)}); }
 float waterLevel(vec2 xz) { return fieldAt(xz).b * LAKE_Y; }   // 바다 0, 호수 LAKE_Y
@@ -209,7 +237,7 @@ mat.onBeforeCompile = s => {
       float hb = fbm(vec2(vW.x + vW.z, vW.y * 2.0) * vec2(2.2, 3.0)) * 0.08 + fbm(vW.xz * 4.0 + vW.y * 2.0) * 0.03;
       normal = bumpN(normal, -vViewPosition, hb * rockMask);`)
     .replace('#include <color_fragment>', `
-      vec4 fld = fieldAt(vW.xz), f2 = field2At(vW.xz);
+      vec4 fld = fieldAt(vW.xz), f2 = field2At(vW.xz), f3 = field3At(vW.xz);
       float lvl = waterLevel(vW.xz);
       vec3 grass = mix(vec3(0.14, 0.34, 0.04), vec3(0.24, 0.45, 0.06), smoothstep(0.3, 0.7, fbm(vW.xz * 0.35)));
       vec3 cliff = mix(vec3(0.2, 0.12, 0.065), vec3(0.26, 0.16, 0.085),
@@ -221,6 +249,13 @@ mat.onBeforeCompile = s => {
       // 모래 띠: 바다는 수면 위 0.34~0.42 까지, 호수는 물가에 얇게만
       vec3 c = mix(sand, grass, smoothstep(lvl + mix(0.34, 0.02, fld.b), lvl + mix(0.42, 0.06, fld.b), vW.y));
       c = mix(c, mix(vec3(0.3, 0.19, 0.1), vec3(0.4, 0.27, 0.14), fbm(vW.xz * 6.0)), fld.a);   // 밭 흙·마을 길
+      // 모래사장: 높이와 상관없이 묶음 전체를 모래로 (물가는 젖은 모래)
+      vec3 beachSand = mix(vec3(0.38, 0.28, 0.15), vec3(0.62, 0.48, 0.28), smoothstep(lvl - 0.02, lvl + 0.08, vW.y)) * (0.93 + 0.14 * fbm(vW.xz * 5.0));
+      c = mix(c, beachSand, f3.r);
+      // 사막: 따뜻한 모래 + 바람 물결무늬
+      vec3 dSand = mix(vec3(0.52, 0.32, 0.14), vec3(0.66, 0.44, 0.2), fbm(vW.xz * 0.7));
+      dSand *= 0.92 + 0.08 * sin(dot(vW.xz, vec2(0.8, 0.6)) * 26.0 + fbm(vW.xz * 2.0) * 9.0);
+      c = mix(c, dSand, f3.g);
       float high = smoothstep(1.1, 1.4, vW.y + fbm(vW.xz * 2.0) * 0.3);
       c = mix(c, stone, high);                                                           // 높은 곳은 바위 (낮은 산자락은 풀)
       float steep = smoothstep(0.8, 0.55, vN.y) * smoothstep(lvl - 0.15, lvl + 0.05, vW.y);
@@ -229,6 +264,7 @@ mat.onBeforeCompile = s => {
       // 만년설: 높을수록, 평평할수록. 노이즈로 능선을 따라 흘러내린 자국
       float snow = smoothstep(2.35, 2.6, vW.y + (fbm(vW.xz * 3.0) - 0.5) * 0.7 + vN.y * 0.4);
       snow = max(snow, f2.a * smoothstep(lvl + 0.2, lvl + 0.38, vW.y));                // 설원 타일
+      snow = max(snow, f3.b * smoothstep(lvl - 0.01, lvl + 0.03, vW.y));               // 빙판 호숫가
       c = mix(c, vec3(0.86, 0.89, 0.94), snow);
       rockMask *= 1.0 - snow * 0.7;
       // 바닥 종류: 산호초 모래(밝은 분홍빛 + 산호 얼룩) / 돌바닥(용궁·유적·성) / 검은 현무암(해구·화산)
@@ -253,7 +289,7 @@ terrain.castShadow = terrain.receiveShadow = true;
 
 // ── 빠른 조회: 마지막으로 계산한 격자에서 쌍선형 보간 ──
 const heights = new Float32Array(N * N).fill(H_MIN);
-const lakeMask = new Float32Array(N * N);
+const lakeMask = new Float32Array(N * N), iceMask = new Float32Array(N * N);
 function grid(arr: Float32Array, x: number, z: number, outside: number) {
   const fi = (x + HALF) / STEP, fj = (z + HALF) / STEP;
   if (fi < 0 || fj < 0 || fi >= N - 1 || fj >= N - 1) return outside;
@@ -263,8 +299,8 @@ function grid(arr: Float32Array, x: number, z: number, outside: number) {
 export const heightFast = (x: number, z: number) => grid(heights, x, z, H_MIN);
 // 그 지점의 표면: 지형 높이, 수면 높이, 호수 여부
 export function surfaceAt(x: number, z: number) {
-  const h = heightFast(x, z), lake = grid(lakeMask, x, z, 0) > 0.5;
-  return { h, lake, water: lake ? LAKE_Y : 0 };
+  const h = heightFast(x, z), lake = grid(lakeMask, x, z, 0) > 0.5, ice = lake && grid(iceMask, x, z, 0) > 0.5;
+  return { h, lake, ice, water: lake ? LAKE_Y : 0 };
 }
 // 마우스 레이가 처음 닿는 표면. 물 위에서는 수면도 맞고, 물속에서는 지형만 맞는다. 높이 격자를 따라 레이 마칭
 export function pick(ray: THREE.Ray) {
@@ -279,6 +315,15 @@ export function pick(ray: THREE.Ray) {
     if (p.y <= (under ? s.h : Math.max(s.h, s.water))) return p;
   }
   return undefined;
+}
+
+export type LakeType = 'water' | 'ice' | 'oasis';
+export const lakeType = new Map<string, LakeType>();
+let lakePts: (Pt & { type: LakeType })[] = [];
+function nearestLakeType(x: number, z: number): LakeType {
+  let best: LakeType = 'water', bd = Infinity;
+  for (const l of lakePts) { const d = (x - l.x) ** 2 + (z - l.z) ** 2; if (d < bd) { bd = d; best = l.type; } }
+  return best;
 }
 
 // 바다에서 닿지 않는 물 칸 = 호수. 육지 바깥 한 겹을 테두리로 잡고 거기서 flood fill
@@ -319,7 +364,23 @@ export function setLand(cells: Cell[], extraRocks: typeof rocks = []) {
   mtnCells = mtns.map(toWorld);
   mtnRing = ringOf(mtns, mtnSet);
   volcanoes = cellsOf(cells, 'volcano').map(comp => ({ ...centroid(comp), n: comp.length }));
-  beaches = [...of('beach'), ...of('islet')].map(toWorld);
+  const region = (kinds: string[]): Region => {
+    const hs = landCells.filter(c => kinds.includes(c.kind)).map(c => c.hex), set = new Set(hs.map(key)), landKeys = new Set(hexes.map(key));
+    const ring = [...new Map(hs.flatMap(neighbors).filter(n => !set.has(key(n)) && landKeys.has(key(n))).map(n => [key(n), toWorld(n)])).values()];
+    return { set, cells: hs.map(toWorld), ring };
+  };
+  beachR = region(['beach', 'islet']);
+  desertR = region(['desert']);
+  // 호수 묶음마다 둘레 육지의 기후를 세어 종류를 정한다: 설원이 많으면 빙판, 사막이 많으면 오아시스
+  lakeType.clear();
+  const kindAt = new Map(landCells.map(c => [key(c.hex), c.kind]));
+  for (const comp of clusters(lakeHexes)) {
+    const inComp = new Set(comp.map(key)), around = [...new Set(comp.flatMap(neighbors).map(key).filter(k => !inComp.has(k)))].map(k => kindAt.get(k));
+    const cold = around.filter(k => k === 'snow').length, hot = around.filter(k => k === 'desert').length;
+    const type: LakeType = cold * 3 >= around.length && cold >= hot ? 'ice' : hot * 3 >= around.length ? 'oasis' : 'water';
+    for (const h of comp) lakeType.set(key(h), type);
+  }
+  lakePts = lakeHexes.map(h => ({ ...toWorld(h), type: lakeType.get(key(h))! }));
   snows = of('snow').map(toWorld);
   castles = of('castle').map(toWorld);
   seaCells = cells.filter(c => isSeaKind(c.kind) && !lakeSet.has(key(c.hex))).map(c => ({ ...toWorld(c.hex), kind: c.kind as SeaKind }));
@@ -339,10 +400,13 @@ export function setLand(cells: Cell[], extraRocks: typeof rocks = []) {
     const v = sample(x, z);
     heights[k] = v.h;
     lakeMask[k] = v.inLake ? 1 : 0;
+    const lt = v.inLake ? nearestLakeType(x, z) : 'water';
+    iceMask[k] = lt === 'ice' ? 1 : 0;
+    field3Data.set([u8(v.sand), u8(v.desert), lt === 'ice' ? 255 : 0, lt === 'oasis' ? 255 : 0], k * 4);
     fieldData.set([u8((v.h - H_MIN) / H_RANGE), u8((v.s - S_MIN) / S_RANGE), v.inLake ? 255 : 0, u8(v.dirt)], k * 4);
     field2Data.set([u8(v.reef), u8(v.paved), u8(v.dark), u8(v.snow)], k * 4);
   }
-  fieldTex.needsUpdate = field2Tex.needsUpdate = true;
+  fieldTex.needsUpdate = field2Tex.needsUpdate = field3Tex.needsUpdate = true;
   const pos = geo.attributes.position;
   for (let v = 0; v < pos.count; v++) {
     const i = Math.round((pos.getX(v) + HALF) / STEP), j = Math.round((pos.getZ(v) + HALF) / STEP);

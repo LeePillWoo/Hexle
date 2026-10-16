@@ -1,7 +1,7 @@
 // 섬 상태: 칸(육지·바닷속 타일)과 아이템. 칸이 바뀌면 지형·장식·오버레이를 다시 만든다
 import * as THREE from 'three';
 import { key, neighbors, toWorld, type Hex } from '../core/hex';
-import { HALF, setLand, surfaceAt } from '../world/terrain';
+import { HALF, lakeType, setLand, surfaceAt } from '../world/terrain';
 import { decorateAll, disposeDecor } from '../tiles/index';
 import { isSeaKind, TILE_INFO, type Cell, type Kind } from '../tiles/kinds';
 import { canPlace, createItem, fitRadius, updateItem, type Item } from '../items/index';
@@ -34,7 +34,7 @@ export function refresh(gift = true) {
     else { removeItem(it); lost.items.push(it.kind); }
   }
   // 새로 생긴 호수(기존 호수와 닿지 않는 새 호수 칸 묶음)에는 예시 잉어 한 마리
-  const fresh = lakes.filter(h => !lakeSet.has(key(h)));
+  const fresh = lakes.filter(h => !lakeSet.has(key(h)) && lakeType.get(key(h)) !== 'ice');   // 빙판엔 물고기 없음
   if (gift && fresh.length && !fresh.some(h => neighbors(h).some(n => lakeSet.has(key(n))))) {
     const c = toWorld(fresh[0]);
     if (canPlace('fish', c.x, c.z)) addItem('fish', c.x, c.z);
