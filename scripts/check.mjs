@@ -102,7 +102,7 @@ console.log('sound far:', await js(`JSON.stringify(hexle.sound.debug())`));
 
 // 저장·복원: 새로고침 후 칸·아이템·카드 수가 같아야 한다
 const before = await summary();
-await send('Page.reload'); await wait(7000);
+await send('Page.reload'); for (let i = 0; i < 40 && !(await js(`typeof hexle !== 'undefined'`)); i++) await wait(500); await wait(1500);
 const after = await summary();
 console.log('persist:', before === after ? 'ok ' + after : 'MISMATCH ' + before + ' vs ' + after);
 

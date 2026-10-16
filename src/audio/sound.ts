@@ -41,12 +41,17 @@ const VOICES: Partial<Record<ItemKind, Voice>> = {
 const BUBBLY = new Set<ItemKind>(['fish', 'school', 'clownfish', 'ray', 'jellyfish', 'octopus', 'squid', 'seahorse', 'anglerfish', 'turtle', 'shark', 'crab', 'clam']);
 const ss = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
+const MAX_SFX = 2;   // 한 번짜리 효과음은 동시에 2개까지
+// 깔리는 소리는 한 번에 한 묶음만: 같은 소리의 겹(파도+거품, 먼 바람+먼바다)은 한 묶음으로 친다
+const BED_GROUP: Record<string, string> = { foam: 'waves', far: 'wind' };
+// 소리마다 최대 음량이 달라서(풀벌레는 원래 작다) 고를 때는 최대치에 대한 비율로 비교한다
+const BED_PEAK: Record<string, number> = { far: 0.27, wind: 0.41, waves: 0.59, foam: 0.36, lap: 0.5, leaves: 0.3, bees: 0.18, crickets: 0.05, snowWind: 0.3, desertWind: 0.3, lava: 0.85, fire: 0.25, under: 0.55 };
 
 export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
   let ac: AudioContext | null = null, enabled = true, underwater = false;
   let master: GainNode, muffle: BiquadFilterNode, sfx: GainNode, noise: AudioBuffer;
   const beds: Record<string, GainNode> = {};
-  let active = 0;   // 지금 울리는 한 번짜리 소리 수 (너무 시끄럽지 않게)
+  let active = 0;   // 지금 울리는 한 번짜리 소리 수 (MAX_SFX 를 넘지 않게)
 
   // ── 준비: 첫 클릭·터치 때 (브라우저 자동재생 정책) ──
   function init() {
@@ -105,18 +110,19 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
     v3.set(x, y, z).applyMatrix4(camera.matrixWorldInverse);
     return Math.max(-1, Math.min(1, v3.x / Math.max(1.5, -v3.z * 0.6)));
   }
-  function out(vol: number, pan: number, life: number) {
+  function out(vol: number, pan: number, life: number, free = false) {   // free: 깔리는 소리의 일부라 개수에 안 센다
     const g = ac!.createGain(), p = ac!.createStereoPanner();
     g.gain.value = vol; p.pan.value = pan;
     g.connect(p); p.connect(sfx);
-    active++;
-    setTimeout(() => { active--; g.disconnect(); p.disconnect(); }, (life + 0.3) * 1000);
+    if (!free) active++;
+    setTimeout(() => { if (!free) active--; g.disconnect(); p.disconnect(); }, (life + 0.3) * 1000);
     return g;
   }
   function env(g: AudioParam, t: number, peak: number, dur: number, attack = 0.02) {
     g.setValueAtTime(0, t); g.linearRampToValueAtTime(peak, t + attack); g.setTargetAtTime(0, t + dur * 0.7, dur * 0.15 + 0.01);
   }
   function voice(p: Voice, vol: number, pan: number) {
+    if (active >= MAX_SFX) return;
     const t0 = ac!.currentTime, reps = p.reps ?? 1, life = reps * (p.dur + (p.gap ?? 0));
     const o0 = out(vol, pan, life);
     for (let r = 0; r < reps; r++) {
@@ -138,6 +144,7 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
     }
   }
   function tone(freqs: number[], vol: number, pan: number, decay: number, type: OscillatorType = 'sine') {   // 종·풍경
+    if (active >= MAX_SFX) return;
     const t = ac!.currentTime, o0 = out(vol, pan, decay * 4);
     freqs.forEach((fr, i) => {
       const o = ac!.createOscillator(), g = ac!.createGain(); o.type = type; o.frequency.value = fr;
@@ -146,14 +153,16 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
       o.start(t); o.stop(t + decay * 4);
     });
   }
-  function noiseHit(vol: number, pan: number, type: BiquadFilterType, f0: number, f1: number, dur: number) {   // 바람 휙·불똥·쾅
-    const t = ac!.currentTime, o0 = out(vol, pan, dur), n = ac!.createBufferSource(), f = ac!.createBiquadFilter(), g = ac!.createGain();
+  function noiseHit(vol: number, pan: number, type: BiquadFilterType, f0: number, f1: number, dur: number, free = false) {   // 바람 휙·불똥·쾅
+    if (!free && active >= MAX_SFX) return;
+    const t = ac!.currentTime, o0 = out(vol, pan, dur, free), n = ac!.createBufferSource(), f = ac!.createBiquadFilter(), g = ac!.createGain();
     n.buffer = noise; f.type = type; f.frequency.setValueAtTime(f0, t); f.frequency.linearRampToValueAtTime(f1, t + dur);
     n.connect(f); f.connect(g); g.connect(o0);
     env(g.gain, t, 1, dur, Math.min(0.15, dur * 0.3));
     n.start(t, Math.random()); n.stop(t + dur + 0.2);
   }
   function chirp(vol: number, pan: number) {   // 새: 짧은 높은음 몇 개
+    if (active >= MAX_SFX) return;
     const t0 = ac!.currentTime, n = 3 + Math.floor(Math.random() * 4), base = rand(2400, 3800), o0 = out(vol, pan, n * 0.12);
     for (let i = 0; i < n; i++) {
       const t = t0 + i * 0.11, o = ac!.createOscillator(), g = ac!.createGain();
@@ -162,6 +171,7 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
     }
   }
   function bubble(vol: number, pan: number) {
+    if (active >= MAX_SFX) return;
     const t = ac!.currentTime, o0 = out(vol, pan, 0.15), o = ac!.createOscillator(), g = ac!.createGain();
     o.frequency.setValueAtTime(rand(300, 600), t); o.frequency.exponentialRampToValueAtTime(rand(900, 1600), t + 0.08);
     o.connect(g); g.connect(o0); env(g.gain, t, 0.4, 0.09, 0.005); o.start(t); o.stop(t + 0.15);
@@ -171,7 +181,14 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
   const nextAt = new WeakMap<object, number>(), emitNext = new Map<string, number>();
   let lastTick = 0, birdAt = 0, gullAt = 0, frogAt = 0, bubbleAt = 0;
   const lastLevel = new Map<string, number>();
-  function setBed(name: string, v: number) { beds[name]?.gain.setTargetAtTime(v, ac!.currentTime, 0.6); }
+  // 목표 음량 중 가장 큰 묶음 하나만 남기고 나머지는 끈다
+  function setBeds(b: Record<string, number>) {
+    const score: Record<string, number> = {};
+    for (const k in b) { const g = BED_GROUP[k] ?? k; score[g] = Math.max(score[g] ?? 0, b[k] / BED_PEAK[k]); }
+    const win = Object.keys(score).reduce((a, c) => score[c] > score[a] ? c : a, 'wind');
+    for (const k of Object.keys(beds)) beds[k].gain.setTargetAtTime((BED_GROUP[k] ?? k) === win ? b[k] ?? 0 : 0, ac!.currentTime, 0.6);
+    return win;
+  }
   function update(t: number) {
     if (!ac || ac.state !== 'running' || !enabled) return;
     if (t - lastTick < 0.2) return;
@@ -193,24 +210,8 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
     }
     sea /= 16; lake /= 16;
     const greens = Math.min(1, W('forest') + W('grass') + W('flower') + W('orchard') + W('farm') * 0.5);
-    if (underwater) {
-      for (const k of Object.keys(beds)) setBed(k, 0);
-      setBed('under', 0.55);
-    } else {
-      setBed('under', 0);
-      setBed('far', 0.22 * far + 0.05);
-      setBed('wind', 0.06 + 0.2 * far + near * 0.15 * Math.min(1, W('mountain') + W('snow') * 0.5));
-      setBed('waves', near * sea * 0.55 + far * 0.04);
-      setBed('foam', near * sea * 0.12 * (1 + W('beach') + W('islet')));
-      setBed('lap', near * lake * 0.5);
-      setBed('leaves', near * W('forest') * 0.3);
-      setBed('bees', near * W('flower') * 0.18);
-      setBed('crickets', near * Math.min(1, W('grass') + W('farm') + W('orchard')) * 0.05);
-      setBed('snowWind', near * W('snow') * 0.3);
-      setBed('desertWind', near * W('desert') * 0.3);
-    }
     // 소리 나는 장식
-    let lava = 0, fire = 0;
+    let lava = 0, fire = 0, fireAt: { x: number; y: number; z: number } | null = null;
     for (const e of emitters) {
       const d = Math.hypot(e.x - target.x, e.z - target.z), vol = near * Math.max(0, 1 - d / 4.5) ** 2;
       const id = `${e.kind}${e.x.toFixed(1)},${e.z.toFixed(1)}`;
@@ -221,7 +222,7 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
         lastLevel.set(id, lv);
         continue;
       }
-      if (e.kind === 'fire') { fire = Math.max(fire, vol); if (vol > 0.02 && Math.random() < 0.5) noiseHit(vol * 0.25, panFor(e.x, e.y, e.z), 'highpass', 2500, 3000, 0.03); continue; }
+      if (e.kind === 'fire') { if (vol > fire) { fire = vol; fireAt = e; } continue; }
       if (vol < 0.02 || underwater !== (e.kind === 'chime')) continue;
       if ((emitNext.get(id) ?? 0) > t) continue;
       if (e.kind === 'windmill') {   // 날개가 지날 때마다 휙, 가끔 삐걱
@@ -231,9 +232,23 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
       } else if (e.kind === 'bell') { tone([392, 940, 1530, 2110], vol * 0.6, panFor(e.x, e.y, e.z), 1.6); emitNext.set(id, t + rand(14, 28)); }
       else { tone([1760, 2349, 2637].map(f => f * rand(0.98, 1.02)), vol * 0.3, panFor(e.x, e.y, e.z), 1.2); emitNext.set(id, t + rand(3, 7)); }   // 용궁 풍경
     }
-    if (!underwater) { setBed('lava', lava); setBed('fire', fire * 0.25); }
+    const win = setBeds(underwater ? { under: 0.55 } : {
+      far: 0.22 * far + 0.05,
+      wind: 0.06 + 0.2 * far + near * 0.15 * Math.min(1, W('mountain') + W('snow') * 0.5),
+      waves: near * sea * 0.55 + far * 0.04,
+      foam: near * sea * 0.12 * (1 + W('beach') + W('islet')),
+      lap: near * lake * 0.5,
+      leaves: near * W('forest') * 0.3,
+      bees: near * W('flower') * 0.18,
+      crickets: near * Math.min(1, W('grass') + W('farm') + W('orchard')) * 0.05,
+      snowWind: near * W('snow') * 0.3,
+      desertWind: near * W('desert') * 0.3,
+      lava, fire: fire * 0.25,
+    });
+    // 모닥불 타닥: 모닥불이 지금 깔리는 소리일 때만
+    if (win === 'fire' && fireAt && Math.random() < 0.5) noiseHit(fire * 0.25, panFor(fireAt.x, fireAt.y, fireAt.z), 'highpass', 2500, 3000, 0.03, true);
     // 자연의 한 번짜리 소리
-    if (active < 6 && !underwater) {
+    if (active < MAX_SFX && !underwater) {
       if (t > birdAt && near * greens > 0.05) { chirp(near * greens * 0.5, rand(-0.8, 0.8)); birdAt = t + rand(2, 6) / (0.4 + greens); }
       if (t > gullAt && near * sea > 0.15) { voice(VOICES.seagull!, near * sea * 0.25, rand(-0.8, 0.8)); gullAt = t + rand(8, 18); }
       if (t > frogAt && near * lake > 0.1) { voice(VOICES.frog!, near * lake * 0.4, rand(-0.6, 0.6)); frogAt = t + rand(3, 8); }
@@ -241,7 +256,7 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
     if (underwater && t > bubbleAt) { bubble(0.25, rand(-0.8, 0.8)); bubbleAt = t + rand(0.4, 2); }
     // 동물·배·물고기: 가까운 것만
     for (const it of state.items) {
-      if (active >= 6) break;
+      if (active >= MAX_SFX) break;
       const p = it.obj.position, d = Math.hypot(p.x - target.x, p.z - target.z), vol = near * Math.max(0, 1 - d / 4) ** 2;
       if (vol < 0.03) continue;
       const due = nextAt.get(it) ?? t + rand(0.5, 3);
