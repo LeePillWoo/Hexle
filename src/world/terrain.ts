@@ -4,11 +4,12 @@
 import * as THREE from 'three';
 import { adjacent, centroid, clusters, fromWorld, hexLen, hexSdf, key, mostConnected, neighbors, toWorld, type Hex } from '../core/hex';
 import { fbm, ridged, segDist, ss, type Pt } from '../core/noise';
-import { cellsOf, isSeaKind, type Cell, type SeaKind } from '../tiles/kinds';
+import { cellsOf, isSeaKind, type Cell, type Kind, type SeaKind } from '../tiles/kinds';
 
-export const HALF = 24;                 // 지형 범위 [-HALF, HALF]²
+export const HALF = 48;                 // 지형 범위 [-HALF, HALF]²
 export const LAKE_Y = 0.3;
-const N = 321;                          // 격자 정점 수 = 텍스처 크기
+// 격자 정점 수 = 텍스처 크기. 터치 기기는 조금 성기게 (간격 0.2 / 0.27)
+const N = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 361 : 481;
 const STEP = 2 * HALF / (N - 1);
 const H_MIN = -4.5, H_RANGE = 9;        // 높이 인코딩 범위 [-4.5, 4.5]
 const S_MIN = -2, S_RANGE = 12;         // 해안 거리 인코딩 범위
@@ -204,7 +205,7 @@ float caustics(vec2 p, float t) {
 }
 // 물속 색: 빨강부터 흡수되고 물빛이 산란돼 들어온다. y 는 수면 기준 높이, lake 0~1 (바다는 푸른 청록, 호수는 에메랄드)
 vec3 absorb(vec3 c, float y, float lake) {
-  vec3 T = exp(-max(0.0, -y) * mix(vec3(2.2, 0.45, 0.3), vec3(7.0, 0.9, 1.6), lake));
+  vec3 T = exp(-max(0.0, -y) * mix(vec3(1.5, 0.3, 0.2), vec3(7.0, 0.9, 1.6), lake));
   return c * T + mix(vec3(0.0, 0.17, 0.3), vec3(0.0, 0.4, 0.26), lake) * (1.0 - T.g);
 }
 vec3 underwaterLight(vec2 xz, float y, float t) {
@@ -348,29 +349,46 @@ function findLakes(cells: Hex[]): Hex[] {
 
 // 칸이 바뀔 때마다 높이맵 전체를 다시 계산한다. 호수 칸 목록을 돌려준다
 // ponytail: 격자점 × 칸 전수 계산 (칸 수십 개까지 수백 ms 이하). 수백 칸이면 바뀐 칸 주변만 갱신
+// ── 다시 계산: 바뀐 칸 근처만, 구역(블록) 단위로 ──
+// 한 점의 높이는 반경 약 10 안의 칸에만 영향을 받는다(해안 단면 8, 산 질량 3.5 …). 그래서
+//  1) 이전 상태와 비교해 바뀐 칸(+ 중심이 움직이는 화산·마을 묶음 전체, 종류가 바뀐 호수)을 모으고
+//  2) 그 주변 사각형만, 24×24 점 블록마다 반경 안의 칸만 추려서 계산한다.
+const MARGIN = 10.5, BLOCK = 24;
+type Full = {
+  notSea: Pt[]; seaRing: Pt[]; lakes: Pt[]; lakeRing: Pt[]; rocks: typeof rocks; mtnCells: Pt[]; mtnRing: Pt[]; volcanoes: typeof volcanoes;
+  beachR: Region; desertR: Region; snows: Pt[]; castles: Pt[]; seaCells: typeof seaCells; farmRing: Pt[]; roads: typeof roads; plazas: Pt[]; lakePts: typeof lakePts;
+};
+let full: Full | null = null, prevKinds = new Map<string, string>(), prevLakes = new Map<string, LakeType>();
+const hexOfKey = (k: string): Hex => { const [q, r] = k.split(','); return { q: +q, r: +r }; };
+// 블록 사각형 + 여유 안의 것만 작업용 배열로
+function focus(f: Full, x0: number, z0: number, x1: number, z1: number) {
+  const inBox = (c: Pt, m = MARGIN) => c.x > x0 - m && c.x < x1 + m && c.z > z0 - m && c.z < z1 + m;
+  const near = <T extends Pt>(arr: T[], m = MARGIN) => arr.filter(c => inBox(c, m));
+  notSea = near(f.notSea); seaRing = near(f.seaRing); lakes = near(f.lakes); lakeRing = near(f.lakeRing); rocks = near(f.rocks);
+  mtnCells = near(f.mtnCells); mtnRing = near(f.mtnRing); volcanoes = near(f.volcanoes, MARGIN + 3);
+  beachR = { ...f.beachR, cells: near(f.beachR.cells), ring: near(f.beachR.ring) };
+  desertR = { ...f.desertR, cells: near(f.desertR.cells), ring: near(f.desertR.ring) };
+  snows = near(f.snows); castles = near(f.castles); seaCells = near(f.seaCells); farmRing = near(f.farmRing);
+  roads = f.roads.filter(([a, b]) => inBox(a) || inBox(b)); plazas = near(f.plazas); lakePts = near(f.lakePts);
+}
+// 그리드 점 → 정점 번호 대응 (한 번만)
+const pos = geo.attributes.position, vertK = new Int32Array(pos.count);
+for (let v = 0; v < pos.count; v++) vertK[v] = Math.round((pos.getZ(v) + HALF) / STEP) * N + Math.round((pos.getX(v) + HALF) / STEP);
+
 export function setLand(cells: Cell[], extraRocks: typeof rocks = []) {
   const landCells = cells.filter(c => !isSeaKind(c.kind)), hexes = landCells.map(c => c.hex), lakeHexes = findLakes(hexes);
   const ownedOrLake = new Set([...hexes, ...lakeHexes].map(key)), lakeSet = new Set(lakeHexes.map(key));
   const ringOf = (src: Hex[], skip: Set<string>) =>
     [...new Map(src.flatMap(neighbors).filter(n => !skip.has(key(n))).map(n => [key(n), toWorld(n)])).values()];
   const of = (k: string) => landCells.filter(c => c.kind === k).map(c => c.hex);
-  notSea = [...hexes, ...lakeHexes].map(toWorld);
-  seaRing = ringOf(hexes, ownedOrLake);
-  lakes = lakeHexes.map(toWorld);
-  lakeRing = ringOf(lakeHexes, lakeSet);
-  rocks = extraRocks;
   const mtns = of('mountain');
   mtnSet = new Set(mtns.map(key));
-  mtnCells = mtns.map(toWorld);
-  mtnRing = ringOf(mtns, mtnSet);
-  volcanoes = cellsOf(cells, 'volcano').map(comp => ({ ...centroid(comp), n: comp.length }));
+  const landKeys = new Set(hexes.map(key));
   const region = (kinds: string[]): Region => {
-    const hs = landCells.filter(c => kinds.includes(c.kind)).map(c => c.hex), set = new Set(hs.map(key)), landKeys = new Set(hexes.map(key));
+    const hs = landCells.filter(c => kinds.includes(c.kind)).map(c => c.hex), set = new Set(hs.map(key));
     const ring = [...new Map(hs.flatMap(neighbors).filter(n => !set.has(key(n)) && landKeys.has(key(n))).map(n => [key(n), toWorld(n)])).values()];
     return { set, cells: hs.map(toWorld), ring };
   };
-  beachR = region(['beach', 'islet']);
-  desertR = region(['desert']);
   // 호수 묶음마다 둘레 육지의 기후를 세어 종류를 정한다: 설원이 많으면 빙판, 사막이 많으면 오아시스
   lakeType.clear();
   const kindAt = new Map(landCells.map(c => [key(c.hex), c.kind]));
@@ -380,38 +398,64 @@ export function setLand(cells: Cell[], extraRocks: typeof rocks = []) {
     const type: LakeType = cold * 3 >= around.length && cold >= hot ? 'ice' : hot * 3 >= around.length ? 'oasis' : 'water';
     for (const h of comp) lakeType.set(key(h), type);
   }
-  lakePts = lakeHexes.map(h => ({ ...toWorld(h), type: lakeType.get(key(h))! }));
-  snows = of('snow').map(toWorld);
-  castles = of('castle').map(toWorld);
-  seaCells = cells.filter(c => isSeaKind(c.kind) && !lakeSet.has(key(c.hex))).map(c => ({ ...toWorld(c.hex), kind: c.kind as SeaKind }));
   const farms = of('farm');
   farmSet = new Set(farms.map(key));
-  farmRing = ringOf(farms, farmSet);
   // 마을: 이어진 집 칸 중심끼리 흙길, 3칸 이상이면 가장 많이 이웃한 칸에 광장
-  roads = []; plazas = [];
+  const rds: typeof roads = [], plz: Pt[] = [];
   for (const comp of clusters(of('house'))) {
-    comp.forEach((a, i) => comp.slice(i + 1).forEach(b => { if (adjacent(a, b)) roads.push([toWorld(a), toWorld(b)]); }));
-    if (comp.length >= 3) plazas.push(toWorld(mostConnected(comp)));
+    comp.forEach((a, i) => comp.slice(i + 1).forEach(b => { if (adjacent(a, b)) rds.push([toWorld(a), toWorld(b)]); }));
+    if (comp.length >= 3) plz.push(toWorld(mostConnected(comp)));
   }
+  const f: Full = {
+    notSea: [...hexes, ...lakeHexes].map(toWorld), seaRing: ringOf(hexes, ownedOrLake), lakes: lakeHexes.map(toWorld), lakeRing: ringOf(lakeHexes, lakeSet),
+    rocks: extraRocks, mtnCells: mtns.map(toWorld), mtnRing: ringOf(mtns, mtnSet),
+    volcanoes: cellsOf(cells, 'volcano').map(comp => ({ ...centroid(comp), n: comp.length })),
+    beachR: region(['beach', 'islet']), desertR: region(['desert']), snows: of('snow').map(toWorld), castles: of('castle').map(toWorld),
+    seaCells: cells.filter(c => isSeaKind(c.kind) && !lakeSet.has(key(c.hex))).map(c => ({ ...toWorld(c.hex), kind: c.kind as SeaKind })),
+    farmRing: ringOf(farms, farmSet), roads: rds, plazas: plz, lakePts: lakeHexes.map(h => ({ ...toWorld(h), type: lakeType.get(key(h))! })),
+  };
 
+  // 바뀐 칸 모으기
+  const kinds = new Map(cells.map(c => [key(c.hex), c.kind as string]));
+  const dirty = new Set<string>();
+  for (const [k, v] of kinds) if (prevKinds.get(k) !== v) dirty.add(k);
+  for (const k of prevKinds.keys()) if (!kinds.has(k)) dirty.add(k);
+  for (const [k, v] of lakeType) if (prevLakes.get(k) !== v) dirty.add(k);
+  for (const k of prevLakes.keys()) if (!lakeType.has(k)) dirty.add(k);
+  const prevCells: Cell[] = [...prevKinds].map(([k, v]) => ({ hex: hexOfKey(k), kind: v as Kind }));
+  for (const kind of ['volcano', 'house'] as Kind[]) for (const comp of [...cellsOf(cells, kind), ...cellsOf(prevCells, kind)])
+    if (comp.some(h => dirty.has(key(h)))) for (const h of comp) dirty.add(key(h));
+  const first = !full;
+  full = f; prevKinds = kinds; prevLakes = new Map(lakeType);
+  if (!first && !dirty.size) { focus(f, -HALF, -HALF, HALF, HALF); return lakeHexes; }
+  // 다시 계산할 격자 범위
+  let i0 = 0, i1 = N - 1, j0 = 0, j1 = N - 1;
+  if (!first) {
+    const pts = [...dirty].map(k => toWorld(hexOfKey(k)));
+    const clampI = (v: number) => Math.min(N - 1, Math.max(0, v));
+    i0 = clampI(Math.floor((Math.min(...pts.map(p => p.x)) - MARGIN + HALF) / STEP)); i1 = clampI(Math.ceil((Math.max(...pts.map(p => p.x)) + MARGIN + HALF) / STEP));
+    j0 = clampI(Math.floor((Math.min(...pts.map(p => p.z)) - MARGIN + HALF) / STEP)); j1 = clampI(Math.ceil((Math.max(...pts.map(p => p.z)) + MARGIN + HALF) / STEP));
+  }
   const u8 = (v: number) => Math.min(255, Math.max(0, v * 255));
-  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-    const x = -HALF + i * STEP, z = -HALF + j * STEP, k = j * N + i;
-    const v = sample(x, z);
-    heights[k] = v.h;
-    lakeMask[k] = v.inLake ? 1 : 0;
-    const lt = v.inLake ? nearestLakeType(x, z) : 'water';
-    iceMask[k] = lt === 'ice' ? 1 : 0;
-    field3Data.set([u8(v.sand), u8(v.desert), lt === 'ice' ? 255 : 0, lt === 'oasis' ? 255 : 0], k * 4);
-    fieldData.set([u8((v.h - H_MIN) / H_RANGE), u8((v.s - S_MIN) / S_RANGE), v.inLake ? 255 : 0, u8(v.dirt)], k * 4);
-    field2Data.set([u8(v.reef), u8(v.paved), u8(v.dark), u8(v.snow)], k * 4);
+  for (let bj = j0; bj <= j1; bj += BLOCK) for (let bi = i0; bi <= i1; bi += BLOCK) {
+    const ei = Math.min(i1, bi + BLOCK - 1), ej = Math.min(j1, bj + BLOCK - 1);
+    focus(f, -HALF + bi * STEP, -HALF + bj * STEP, -HALF + ei * STEP, -HALF + ej * STEP);
+    for (let j = bj; j <= ej; j++) for (let i = bi; i <= ei; i++) {
+      const x = -HALF + i * STEP, z = -HALF + j * STEP, k = j * N + i;
+      const v = sample(x, z);
+      heights[k] = v.h;
+      lakeMask[k] = v.inLake ? 1 : 0;
+      const lt = v.inLake ? nearestLakeType(x, z) : 'water';
+      iceMask[k] = lt === 'ice' ? 1 : 0;
+      field3Data.set([u8(v.sand), u8(v.desert), lt === 'ice' ? 255 : 0, lt === 'oasis' ? 255 : 0], k * 4);
+      fieldData.set([u8((v.h - H_MIN) / H_RANGE), u8((v.s - S_MIN) / S_RANGE), v.inLake ? 255 : 0, u8(v.dirt)], k * 4);
+      field2Data.set([u8(v.reef), u8(v.paved), u8(v.dark), u8(v.snow)], k * 4);
+    }
   }
+  // 장식 배치(farmInside·roadDist 등)는 섬 전체 기준으로 쓴다
+  focus(f, -HALF, -HALF, HALF, HALF);
   fieldTex.needsUpdate = field2Tex.needsUpdate = field3Tex.needsUpdate = true;
-  const pos = geo.attributes.position;
-  for (let v = 0; v < pos.count; v++) {
-    const i = Math.round((pos.getX(v) + HALF) / STEP), j = Math.round((pos.getZ(v) + HALF) / STEP);
-    pos.setY(v, heights[j * N + i]);
-  }
+  for (let v = 0; v < pos.count; v++) pos.setY(v, heights[vertK[v]]);
   pos.needsUpdate = true;
   geo.computeVertexNormals();
   geo.computeBoundingSphere();

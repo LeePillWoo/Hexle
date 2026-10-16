@@ -59,7 +59,7 @@ function createSurface(sunDir: THREE.Vector3, reflection: number) {
       foam = clamp(foam + band * 0.7, 0.0, 1.0);
       vec3 outgoingLight = mix(albedo, vec3(0.97), foam * 0.9);
       // 투명도: 얕으면 바닥이 훤히 비치고, 깊거나 비스듬히 보면 불투명·반사
-      float a = clamp((1.0 - exp(-depth * 0.55)) * 1.1, 0.0, 1.0);
+      float a = clamp((1.0 - exp(-depth * 0.4)) * 1.08, 0.0, 1.0);
       a = max(max(a, reflectance), max(min(1.0, dot(specularLight, vec3(0.33))), foam * 0.9));`)
     .replace('gl_FragColor = vec4( outgoingLight, alpha );', 'gl_FragColor = vec4( outgoingLight, alpha * a );');
   return water;

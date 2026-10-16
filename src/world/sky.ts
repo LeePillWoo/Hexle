@@ -31,7 +31,7 @@ export function createSky(renderer: THREE.WebGLRenderer, scene: THREE.Scene, sha
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.02;
   Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, far: 80 });
-  scene.add(sun);
+  scene.add(sun, sun.target);
 
   return { sunDir, sun };
 }

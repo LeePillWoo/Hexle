@@ -13,7 +13,7 @@ export function createCamera(canvas: HTMLElement) {
   controls.minPolarAngle = 0.05;
   controls.maxPolarAngle = Math.PI - 0.3;   // 수면 아래로 돌아 들어갈 수 있게
   controls.minDistance = 1.2;
-  controls.maxDistance = 50;
+  controls.maxDistance = 90;
 
   // 잠수/부상: 목표 지점(바라보는 곳)과 카메라 위치로 부드럽게 이동
   let goal: { t: THREE.Vector3; c: THREE.Vector3 } | null = null;

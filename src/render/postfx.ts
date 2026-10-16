@@ -20,8 +20,8 @@ void main() {
   vec3 col = vec3(texture2D(tDiffuse, uv + off * 0.5).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - off * 0.5).b);
   // 거리 안개: 멀수록 푸른 물빛
   float z = viewZ(uv);
-  float fog = 1.0 - exp(-z * 0.16);
-  vec3 fogCol = mix(vec3(0.02, 0.2, 0.32), vec3(0.06, 0.4, 0.5), vUv.y * 0.6 + 0.2);
+  float fog = 1.0 - exp(-z * 0.075);
+  vec3 fogCol = mix(vec3(0.03, 0.26, 0.38), vec3(0.1, 0.5, 0.6), vUv.y * 0.6 + 0.2);
   col = mix(col, fogCol, fog * w);
   // 위에서 내려오는 광선
   float sh = 0.0;
@@ -39,7 +39,7 @@ void main() {
     if (h > 0.93) snow += smoothstep(0.08, 0.0, length(f - vec2(hash(c + 1.0), hash(c + 2.0)))) * 0.25;
   }
   col += snow * w;
-  col *= 1.0 - w * 0.45 * smoothstep(0.45, 1.0, length(vUv - 0.5) * 1.35);
+  col *= 1.0 - w * 0.3 * smoothstep(0.5, 1.0, length(vUv - 0.5) * 1.35);
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>

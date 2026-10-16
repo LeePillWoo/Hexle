@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { centroid, mostConnected, toWorld, type Hex } from '../core/hex';
 import { rng, seedOf } from '../core/noise';
 import { heightFast } from '../world/terrain';
+import { emit } from '../audio/emitters';
 import type { Kind } from './kinds';
 import { batch, glowMat, inHex, lumpy, merge, paint, placed, prism, puffs, slope, smokeTex, vcFlat, type Ctx } from './models';
 
@@ -345,6 +346,7 @@ function grass(ctx: Ctx, comp: Hex[]) {
     pivot.add(blades);
     ctx.g.add(pivot);
     ctx.updates.push(t => { blades.rotation.z = t * 0.8; });
+    emit({ x: pivot.position.x, y: pivot.position.y, z: pivot.position.z, kind: 'windmill' });
   }
   if (n >= 2) {
     const others = comp.filter(h => h !== center), w = toWorld(others[0] ?? center), x = w.x + 0.3, z = w.z + 0.2;
@@ -487,6 +489,8 @@ function ribbon(pts: THREE.Vector3[], w0: number) {
 }
 export function eruption(ctx: Ctx, cx: number, cz: number, crater: number, seed: number, light: THREE.PointLight) {
   const rnd = rng(seed), period = 38, offset = rnd() * period;
+  let te = 99;   // 분화 시작 뒤 지난 시간 (소리에서 읽는다)
+  emit({ x: cx, y: heightFast(cx, cz), z: cz, kind: 'volcano', level: () => te < 6 ? 1 : te < 20 ? 0.5 : 0 });
   const mat = new THREE.ShaderMaterial({ uniforms: { grow: { value: 0 }, heat: { value: 1 }, fade: { value: 1 }, time: { value: 0 } }, vertexShader: lavaVS, fragmentShader: lavaFS,
     transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, side: THREE.DoubleSide });
   const streams = new THREE.Group();
@@ -506,7 +510,8 @@ export function eruption(ctx: Ctx, cx: number, cz: number, crater: number, seed:
     ctx.g.add(s);
   }
   ctx.updates.push(t => {
-    const te = (t + offset) % period, u = mat.uniforms;
+    te = (t + offset) % period;
+    const u = mat.uniforms;
     u.time.value = t;
     u.grow.value = Math.min(1, Math.max(0, (te - 1) / 7));
     u.heat.value = 1 - Math.min(1, Math.max(0, (te - 11) / 9));

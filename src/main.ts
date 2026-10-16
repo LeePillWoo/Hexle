@@ -6,6 +6,7 @@ import { terrain } from './world/terrain';
 import { createOverlay } from './world/overlay';
 import { createCamera } from './render/camera';
 import { createPostFX } from './render/postfx';
+import { createSound } from './audio/sound';
 import { createDock, type Section } from './ui/inventory';
 import { createHud, type Mode } from './ui/hud';
 import { mountQuiz } from './ui/quiz';
@@ -31,7 +32,8 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const cam = createCamera(renderer.domElement);
-const { sunDir } = createSky(renderer, scene, lowEnd ? 1024 : 2048);
+const { sunDir, sun } = createSky(renderer, scene, lowEnd ? 1024 : 2048);
+const sound = createSound(cam.camera, cam.controls.target);
 const water = createWater(sunDir, lowEnd ? 512 : 1024);
 const overlay = createOverlay();
 const postfx = createPostFX(renderer, scene, cam.camera);
@@ -45,7 +47,8 @@ let selection: Selection | null = null, loading = false;
 const hud = createHud({
   onMode: m => setMode(m),
   onDive: down => { cam.dive(down); setMode(down ? 'sea' : 'island'); },
-  onToggle: (g, b) => { overlay.grid.visible = g; overlay.edge.visible = overlay.seaEdge.visible = b; },
+  onToggle: g => { overlay.grid.visible = overlay.edge.visible = overlay.seaEdge.visible = g; },   // 격자와 영역 경계선은 함께
+  onSound: on => sound.setEnabled(on),
   onErase: on => { if (on) choose(null); placement.clear(); hud.say(on ? '지울 타일이나 생물을 클릭하세요 · Esc 취소' : ''); },
   onReset: async () => {
     if (!await hud.confirm('섬을 처음 상태로 되돌릴까요?\n배치한 타일·아이템과 보유 카드가 모두 사라집니다.', '초기화')) return;
@@ -171,9 +174,14 @@ renderer.setAnimationLoop(t => {
   state.update(now);
   cam.update(dt);
   const under = cam.isUnderwater();
-  if (under !== wasUnder) { wasUnder = under; water.setUnderwater(under); setMode(under ? 'sea' : 'island'); }
+  if (under !== wasUnder) { wasUnder = under; water.setUnderwater(under); sound.setUnderwater(under); setMode(under ? 'sea' : 'island'); }
+  // 그림자는 보는 곳 주변만 (섬이 넓어도 선명하게)
+  const tg = cam.controls.target;
+  sun.target.position.set(tg.x, 0, tg.z);
+  sun.position.set(tg.x, 0, tg.z).addScaledVector(sunDir, 30);
+  sound.update(now);
   postfx.render(under, now);
 });
 
 // 개발 서버에서만: 콘솔·자동 테스트용 핸들
-if (import.meta.env.DEV) Object.assign(window, { hexle: { state, invs, docks, choose, hud, cam, setMode, persist, canPlace, probe: placement.probe, refresh: state.refresh } });
+if (import.meta.env.DEV) Object.assign(window, { hexle: { state, invs, docks, sound, choose, hud, cam, setMode, persist, canPlace, probe: placement.probe, refresh: state.refresh } });

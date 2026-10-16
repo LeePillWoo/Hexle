@@ -51,9 +51,12 @@ console.log(await js(`(() => { const put = [['cow', 0.6, 0.4], ['chicken', -0.5,
   ['chest', 9.2, -1.9], ['kelp', 9.8, 2.6], ['seaweed', 10.2, 2.0], ['coralPink', 9.4, 2.4], ['lantern', 1, 7.5], ['anglerfish', -10, -3.5], ['clam', 10.4, -2.0]];
   const skipped = []; for (const [k, x, z] of put) { if (hexle.canPlace(k, x, z)) hexle.state.addItem(k, x, z); else skipped.push(k); }
   hexle.persist(); return 'items ' + hexle.state.items.length + (skipped.length ? ' (놓을 수 없는 자리라 건너뜀: ' + skipped + ')' : ''); })()`));
+// 넓어진 범위: 먼 바다(반경 약 18칸)에도 새 섬을 놓을 수 있고, 한 칸 놓는 데 걸리는 시간
+console.log('far islet:', await js(`(() => { const ok = hexle.state.canPlaceTile('islet', { q: 18, r: -2 }); const t0 = performance.now(); hexle.state.placeTile({ q: 18, r: -2 }, 'islet');
+  const t1 = performance.now(); hexle.state.placeTile({ q: 1, r: -1 }, 'forest'); return 'ok=' + ok + ' far ' + Math.round(t1 - t0) + 'ms, near ' + Math.round(performance.now() - t1) + 'ms'; })()`));
 console.log('canPlaceTile:', await js(`JSON.stringify({ attachOnSea: hexle.state.canPlaceTile('grass', { q: 8, r: 0 }), attachNext: hexle.state.canPlaceTile('grass', { q: -1, r: 0 }),
   isletNearLand: hexle.state.canPlaceTile('islet', { q: -1, r: 0 }), isletFar: hexle.state.canPlaceTile('islet', { q: -6, r: -3 }), reefOnLand: hexle.state.canPlaceTile('reef', { q: 0, r: 0 }), reefFar: hexle.state.canPlaceTile('reef', { q: 6, r: -4 }) })`));
-await js(`document.getElementById('tGrid').click(); document.getElementById('tEdge').click(); hexle.docks.island.el.querySelector('.egg').click(); (hexle.docks.island.el.querySelectorAll('.mtab')[1].click(), hexle.docks.island.el.querySelector('.egg').click(), hexle.docks.island.el.querySelectorAll('.mtab')[0].click()); 0`);
+await js(`document.getElementById('tGrid').click(); hexle.docks.island.el.querySelector('.egg').click(); (hexle.docks.island.el.querySelectorAll('.mtab')[1].click(), hexle.docks.island.el.querySelector('.egg').click(), hexle.docks.island.el.querySelectorAll('.mtab')[0].click()); 0`);
 await view(0.5, 0, 1, 0.5, 24, 15); await wait(3000); await shot('all');
 await view(1.5, 0, -0.5, 1.5, 6, 3.5); await wait(1500); await shot('land');
 await view(4.3, 0, 6.9, 4.3, 7, 11); await wait(1500); await shot('palace_top');
@@ -87,6 +90,15 @@ await js(`hexle.persist(); 0`);
 console.log('synth one card:', await js(`(() => { const inv = hexle.invs.island[0]; inv.set({ grass: 1 }); return 'disabled=' + (hexle.docks.island.sections[0].renderBody(), hexle.docks.island.el.querySelector('.synth').disabled); })()`));
 await js(`hexle.persist(); 0`);
 await shot('quiz_ui');
+
+// 소리: 화면을 한 번 누르면 켜지고, 가까이 가면 주변에 맞는 소리가 깔린다
+await mouse('mousePressed', 700, 300); await mouse('mouseReleased', 700, 300);
+await view(9.6, -0.3, 0.5, 9.6, 3, 3); await wait(7000);
+console.log('sound near reef/sea:', await js(`JSON.stringify(hexle.sound.debug())`));
+await view(0.5, 0.6, -1.5, 0.5, 3.5, 1.5); await wait(7000);
+console.log('sound near forest/camp:', await js(`JSON.stringify(hexle.sound.debug())`));
+await view(0, 0, 0, 0, 40, 25); await wait(7000);
+console.log('sound far:', await js(`JSON.stringify(hexle.sound.debug())`));
 
 // 저장·복원: 새로고침 후 칸·아이템·카드 수가 같아야 한다
 const before = await summary();

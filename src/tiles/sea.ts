@@ -4,6 +4,7 @@ import { centroid, corners, fromWorld, key, mostConnected, R, toWorld, type Hex 
 import { rng, seedOf } from '../core/noise';
 import { heightFast } from '../world/terrain';
 import { makeSchool } from '../items/models';
+import { emit } from '../audio/emitters';
 import type { SeaKind } from './kinds';
 import { batch, bubbleTex, glowMat, inHex, lumpy, merge, paint, placed, puffs, slope, swayMat, vc, vcFlat, type Ctx } from './models';
 
@@ -201,6 +202,7 @@ function palace(ctx: Ctx, comp: Hex[]) {
     ctx.updates.push(puffs(ctx.g, { x, y: yAt(x, z) + 0.05, z, n: 10, color: 0xcfefff, size: [0.03, 0.09], rise: Math.max(0.3, -yAt(x, z) - 0.1), drift: 0.05, speed: 0.22, tex: bubbleTex, opacity: 0.7, spread: 0.15 }));
   }
   school(ctx, c.x + 0.8, c.z - 0.4, 0.6, 14, 0.3);
+  emit({ x: c.x, y: heightFast(c.x, c.z) + 0.5, z: c.z, kind: 'chime' });
 }
 
 // 난파선: 칸마다 기울어진 배 한 척과 부러진 돛대, 주변에 통·널빤지·보물상자, 선체에 해초

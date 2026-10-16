@@ -6,6 +6,7 @@ import { centroid, corners, fromWorld, key, mostConnected, neighbors, R, toWorld
 import { rng, seedOf } from '../core/noise';
 import { farmInside, heightFast, LAKE_Y, lakeType, roadDist, surfaceAt, volcanoSize } from '../world/terrain';
 import { buildModel } from '../items/models';
+import { emit } from '../audio/emitters';
 import { barnGeo, eruption, fruitStallGeo, marketStallGeo, palmGeo as PALM } from './extras';
 import { batch, inHex, lumpy, merge, paint, placed, prism, puffs, slope, smokeTex, vc, vcFlat, type Ctx } from './models';
 import type { Kind } from './kinds';
@@ -371,7 +372,7 @@ function village(ctx: Ctx, comp: Hex[]) {
         if (comp.length >= 5 && z < c.z - 0.2) continue;   // 교회 자리
         ctx.g.add(placed(marketStallGeo[i], x, heightFast(x, z), z, 1, Math.atan2(c.x - x, c.z - z)));
       }
-      if (comp.length >= 5) { const x = c.x - 0.15, z = c.z - 0.62; ctx.g.add(placed(churchGeo, x, heightFast(x, z), z, 1.1, 0)); }
+      if (comp.length >= 5) { const x = c.x - 0.15, z = c.z - 0.62; ctx.g.add(placed(churchGeo, x, heightFast(x, z), z, 1.1, 0)); emit({ x, y: heightFast(x, z) + 1, z, kind: 'bell' }); }
       continue;
     }
     const a0 = rnd() * Math.PI * 2, homes: { x: number; z: number }[] = [];
@@ -514,6 +515,7 @@ function camp(ctx: Ctx, h: Hex) {
   const fire = new THREE.PointLight(0xff8a3a, 1.5, 2.5);
   fire.position.set(fx, fy + 0.3, fz);
   g.add(fire);
+  emit({ x: fx, y: fy, z: fz, kind: 'fire' });
   ctx.updates.push(puffs(g, { x: fx, y: fy + 0.15, z: fz, n: 14, color: 0xdddddd, size: [0.15, 1.05], rise: 2.4, drift: 0.4, speed: 0.18, tex: smokeTex, opacity: 0.35 }));
 }
 
