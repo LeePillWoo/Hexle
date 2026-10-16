@@ -1,7 +1,7 @@
 // 시스템 오버레이: 육각 그리드(라인), 영역 경계선, 배치 가능한 칸. 지형과 별개로 켜고 끈다.
 import * as THREE from 'three';
 import { corners, fromWorld, key, neighbors, toWorld, type Hex } from './hex';
-import { heightAt } from './terrain';
+import { surfaceAt } from './terrain';
 
 const lineMat = (color: number, opacity: number) =>
   new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthTest: false });
@@ -10,7 +10,7 @@ const hoverMat = new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: tru
 const hexFill = new THREE.CircleGeometry(0.94 * 2 / Math.sqrt(3), 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 2);
 
 // 지형 표면 살짝 위 (물 위면 수면)
-const surf = (x: number, z: number) => new THREE.Vector3(x, Math.max(0, heightAt(x, z)) + 0.03, z);
+const surf = (x: number, z: number) => { const s = surfaceAt(x, z); return new THREE.Vector3(x, Math.max(s.water, s.h) + 0.03, z); };
 
 export function createOverlay() {
   const grid = new THREE.LineSegments(new THREE.BufferGeometry(), lineMat(0xffffff, 0.45));

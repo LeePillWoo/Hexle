@@ -47,6 +47,7 @@ export function createOcean(sunDir: THREE.Vector3) {
     .replace('vec3 surfaceNormal = normalize( noise.xzy * vec3( 1.5, 1.0, 1.5 ) );', `
       vec3 wv = waves(worldPosition.xz, time);
       vec3 surfaceNormal = normalize( noise.xzy * vec3( 1.5, 1.0, 1.5 ) + vec3(-wv.y, 0.0, -wv.z) * 0.4 );
+      if (fieldAt(worldPosition.xz).b > 0.5) discard;   // 호수 자리는 호수 수면이 맡는다
       float depth = max(0.0, -landH(worldPosition.xz));
       float s = landS(worldPosition.xz);`)
     .replace('vec3 scatter = max( 0.0, dot( surfaceNormal, eyeDirection ) ) * waterColor;', `
