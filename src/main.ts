@@ -5,7 +5,7 @@ import { Sky } from 'three/addons/objects/Sky.js';
 import { createOcean } from './ocean';
 import { terrain, setLand, pick, type Cell, type Kind } from './terrain';
 import { lakeSurface } from './lake';
-import { decorate, disposeDecor, lighthouse, TILE_INFO, TILE_KINDS } from './island';
+import { decorateAll, disposeDecor, lighthouse, TILE_INFO, TILE_KINDS } from './island';
 import { canPlace, createItem, fitRadius, updateItem, ITEM_INFO, ITEM_KINDS, PLACE_NAME, type Item, type ItemKind } from './items';
 import { createOverlay } from './overlay';
 import { fromWorld, key, neighbors, toWorld, type Hex } from './hex';
@@ -78,7 +78,7 @@ function refresh() {
   // 장식은 지형 높이가 바뀌었을 수 있으니 전부 다시 올린다
   for (const o of decor.children) disposeDecor(o);
   decor.clear();
-  for (const t of land) decor.add(decorate(t.hex, t.kind));
+  decor.add(decorateAll(land));
   overlay.rebuild(land.map(t => t.hex));
   // 놓을 수 없는 자리가 된 아이템(예: 메워진 호수의 물고기)은 사라진다
   for (const it of [...items]) {
@@ -102,7 +102,7 @@ type Card = { type: 'tile'; kind: Kind } | { type: 'item'; kind: ItemKind };
 const cards: Card[] = [];
 let selected = -1;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const cardsEl = $('cards'), msg = $('msg');
+const tileCards = $('tileCards'), itemCards = $('itemCards'), msg = $('msg');
 const say = (text: string, ok = true) => { msg.textContent = text; msg.style.color = ok ? '#2f7a2f' : '#b3261e'; };
 // 받침 유무로 조사 고르기 (물고기는 / 상어를)
 const josa = (w: string, withFinal: string, without: string) => w + ((w.charCodeAt(w.length - 1) - 0xac00) % 28 ? withFinal : without);
@@ -111,8 +111,9 @@ const pickRandom = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 $('addTile').onclick = () => { const kind = pickRandom(TILE_KINDS); cards.push({ type: 'tile', kind }); say(`${TILE_INFO[kind].name} 타일을 얻었어요`); render(); };
 $('addItem').onclick = () => { const kind = pickRandom(ITEM_KINDS); cards.push({ type: 'item', kind }); say(`${josa(ITEM_INFO[kind].name, "을", "를")} 얻었어요`); render(); };
 
+// 타일은 왼쪽, 아이템은 오른쪽 패널에 (선택 인덱스는 cards 전체 기준)
 function render() {
-  cardsEl.replaceChildren(...cards.map((c, i) => {
+  const els = cards.map((c, i) => {
     const el = document.createElement('button');
     const info = c.type === 'tile' ? TILE_INFO[c.kind] : ITEM_INFO[c.kind];
     const where = c.type === 'tile' ? '타일' : PLACE_NAME[ITEM_INFO[c.kind].place];
@@ -120,8 +121,11 @@ function render() {
     el.innerHTML = `<b>${info.icon}</b>${info.name}<small>${where}</small>`;
     el.onclick = () => select(i === selected ? -1 : i);
     return el;
-  }));
-  if (!cards.length) cardsEl.textContent = '위 버튼으로 타일이나 아이템을 얻어 보세요';
+  });
+  tileCards.replaceChildren(...els.filter((_, i) => cards[i].type === 'tile'));
+  itemCards.replaceChildren(...els.filter((_, i) => cards[i].type === 'item'));
+  if (!tileCards.children.length) tileCards.textContent = '타일 추가 버튼을 눌러 보세요';
+  if (!itemCards.children.length) itemCards.textContent = '아이템 추가 버튼을 눌러 보세요';
 }
 function select(i: number) {
   selected = i;
@@ -213,4 +217,5 @@ renderer.setAnimationLoop(t => {
 });
 
 // 개발 서버에서만: 콘솔·자동 테스트용 핸들
-if (import.meta.env.DEV) Object.assign(window, { hexle: { land, items, cards, refresh, render, camera, controls } });
+if (import.meta.env.DEV) Object.assign(window, { hexle: { land, items, cards, refresh, render, camera, controls,
+  spawn: (k: ItemKind, x: number, z: number) => addItem(createItem(k, x, z)) } });

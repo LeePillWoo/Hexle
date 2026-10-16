@@ -17,9 +17,12 @@ const mat = new THREE.ShaderMaterial({
       vec4 f = fieldAt(vW.xz);
       float depth = LAKE_Y - landH(vW.xz);
       if (f.b < 0.5 || depth <= 0.0) discard;
-      vec3 col = mix(vec3(0.1, 0.45, 0.42), vec3(0.02, 0.18, 0.26), smoothstep(0.0, 0.6, depth));
-      float a = 0.35 + 0.5 * smoothstep(0.0, 0.7, depth);
-      col += caustics(vW.xz * 0.7, time * 0.8) * 0.06;                       // 수면 반짝임
+      // 에메랄드: 얕은 곳은 맑은 청록, 깊은 곳은 짙은 비취색. 투명도를 낮게 둬서 밝은 바닥이 비쳐 빛나게
+      vec3 col = mix(vec3(0.0, 0.58, 0.42), vec3(0.0, 0.3, 0.26), smoothstep(0.0, 0.6, depth));
+      float a = 0.3 + 0.4 * smoothstep(0.0, 0.6, depth);
+      float c = caustics(vW.xz * 0.7, time * 0.8);
+      col += c * 0.08 + pow(c, 4.0) * 0.5;                                     // 수면 반짝임
+      a += pow(c, 4.0) * 0.3;
       float fr = pow(1.0 - normalize(cameraPosition - vW).y, 4.0);           // 비스듬히 보면 하늘 반사
       col = mix(col, vec3(0.7, 0.85, 0.95), fr * 0.6);
       a = max(a, fr * 0.8);

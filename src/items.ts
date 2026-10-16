@@ -40,36 +40,73 @@ const sphere = new THREE.SphereGeometry(1, 16, 12);
 const cone = new THREE.ConeGeometry(1, 1, 8);
 const box = new THREE.BoxGeometry(1, 1, 1);
 const cyl = new THREE.CylinderGeometry(1, 1, 1, 8);
+const fluff = new THREE.IcosahedronGeometry(1, 1);
 const tailFin = cone.clone().rotateZ(Math.PI / 2);   // 꼬리지느러미: 뒤(-x)로 넓어지는 원뿔
+const finGeo = new THREE.ConeGeometry(1, 1, 3);
 const M = {
-  fish: mat(0xff8a2a), white: mat(0xf5f5f0), dark: mat(0x2b2b2b), shark: mat(0x6f8796), sheep: mat(0xf4f1ea, { roughness: 1 }),
-  cat: mat(0xe9973f), hull: mat(0x8a5a33), sail: mat(0xfaf6ea, { side: THREE.DoubleSide }),
+  fish: mat(0xff8a2a), fishBelly: mat(0xffd2a0), white: mat(0xf5f5f0), dark: mat(0x2b2b2b), shark: mat(0x6f8796),
+  sheep: mat(0xf4f1ea, { roughness: 1, flatShading: true }), face: mat(0x3a3330), pink: mat(0xf0a0a8),
+  cat: mat(0xe9973f), catLight: mat(0xf7d9b0), hull: mat(0x8a5a33), deck: mat(0xc49a6a), trim: mat(0xf2eee6),
+  sail: mat(0xfaf6ea, { side: THREE.DoubleSide }), flag: mat(0xd03a2f, { side: THREE.DoubleSide }),
+};
+const eyes = (g: THREE.Group, x: number, y: number, z: number, r: number) => {
+  for (const s of [1, -1]) g.add(part(sphere, M.dark, x, y, z * s, r));
 };
 
 function model(kind: ItemKind) {
   const g = new THREE.Group();
   if (kind === 'fish') {
     g.add(part(sphere, M.fish, 0, 0, 0, 0.09, 0.045, 0.035));
-    g.add(part(tailFin, M.fish, -0.11, 0, 0, 0.05, 0.05, 0.015));
+    g.add(part(sphere, M.fishBelly, 0.01, -0.012, 0, 0.075, 0.03, 0.03));
+    g.add(part(tailFin, M.fish, -0.115, 0.015, 0, 0.045, 0.035, 0.012).rotateZ(-0.35));   // 꼬리 위·아래 갈래
+    g.add(part(tailFin, M.fish, -0.115, -0.015, 0, 0.045, 0.035, 0.012).rotateZ(0.35));
+    g.add(part(finGeo, M.fish, -0.01, 0.05, 0, 0.03, 0.035, 0.006));                     // 등지느러미
+    for (const s of [1, -1]) g.add(part(finGeo, M.fish, 0.03, -0.015, 0.03 * s, 0.015, 0.03, 0.004).rotateX(s * 1.1));
+    eyes(g, 0.065, 0.012, 0.024, 0.008);
   } else if (kind === 'shark') {
     g.add(part(sphere, M.shark, 0, 0, 0, 0.32, 0.08, 0.09));
-    g.add(part(cone, M.shark, 0, 0.12, 0, 0.06, 0.18, 0.015));                     // 등지느러미 (수면 위로 나온다)
-    g.add(part(tailFin, M.shark, -0.36, 0.02, 0, 0.1, 0.1, 0.02));
+    g.add(part(sphere, M.white, 0.02, -0.03, 0, 0.28, 0.05, 0.075));                   // 흰 배
+    g.add(part(cone, M.shark, 0.34, 0, 0, 0.06, 0.1, 0.07).rotateZ(-Math.PI / 2));     // 주둥이
+    g.add(part(finGeo, M.shark, 0, 0.13, 0, 0.07, 0.2, 0.012));                         // 등지느러미 (수면 위로 나온다)
+    for (const s of [1, -1]) g.add(part(finGeo, M.shark, 0.08, -0.05, 0.1 * s, 0.05, 0.14, 0.01).rotateX(s * 1.3).rotateZ(0.5));
+    g.add(part(tailFin, M.shark, -0.38, 0.05, 0, 0.1, 0.09, 0.015).rotateZ(-0.6));
+    g.add(part(tailFin, M.shark, -0.36, -0.03, 0, 0.07, 0.06, 0.015).rotateZ(0.5));
+    eyes(g, 0.25, 0.02, 0.06, 0.012);
   } else if (kind === 'boat') {
-    g.add(part(box, M.hull, 0, 0.04, 0, 0.5, 0.1, 0.2));
-    g.add(part(cone, M.hull, 0.3, 0.04, 0, 0.1, 0.12, 0.1).rotateZ(-Math.PI / 2));  // 뱃머리
-    g.add(part(cyl, M.hull, 0, 0.35, 0, 0.012, 0.6, 0.012));
-    const sail = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(0, 0.5), new THREE.Vector2(0.3, 0)]);
-    g.add(part(new THREE.ShapeGeometry(sail), M.sail, 0.02, 0.12, 0));
+    g.add(part(box, M.hull, 0, 0.05, 0, 0.5, 0.12, 0.22));
+    g.add(part(cone, M.hull, 0.31, 0.05, 0, 0.11, 0.13, 0.12).rotateZ(-Math.PI / 2));  // 뱃머리
+    g.add(part(box, M.trim, 0, 0.115, 0, 0.52, 0.015, 0.23));                          // 뱃전 띠
+    g.add(part(box, M.deck, 0, 0.11, 0, 0.46, 0.01, 0.18));                            // 갑판
+    g.add(part(box, M.hull, -0.17, 0.16, 0, 0.12, 0.09, 0.14));                        // 선실
+    g.add(part(cyl, M.hull, 0.02, 0.42, 0, 0.012, 0.62, 0.012));                       // 돛대
+    g.add(part(cyl, M.hull, -0.08, 0.18, 0, 0.008, 0.22, 0.008).rotateZ(Math.PI / 2)); // 활대
+    const main = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(0, 0.52), new THREE.Vector2(-0.2, 0.02)]);
+    const jib = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(0, 0.42), new THREE.Vector2(0.26, 0)]);
+    g.add(part(new THREE.ShapeGeometry(main), M.sail, 0.01, 0.19, 0));
+    g.add(part(new THREE.ShapeGeometry(jib), M.sail, 0.04, 0.19, 0.005));
+    g.add(part(new THREE.PlaneGeometry(0.08, 0.05), M.flag, 0.06, 0.7, 0));
   } else if (kind === 'sheep') {
-    g.add(part(sphere, M.sheep, 0, 0.14, 0, 0.13, 0.09, 0.09));
-    g.add(part(sphere, M.dark, 0.13, 0.17, 0, 0.045, 0.04, 0.035));
-    for (const [x, z] of [[0.07, 0.04], [0.07, -0.04], [-0.07, 0.04], [-0.07, -0.04]]) g.add(part(cyl, M.dark, x, 0.04, z, 0.012, 0.08, 0.012));
+    for (const [x, y, z, r] of [[0, 0.15, 0, 0.09], [0.06, 0.16, 0.03, 0.07], [-0.06, 0.15, -0.03, 0.075], [0.05, 0.15, -0.04, 0.065],
+      [-0.05, 0.17, 0.04, 0.065], [0, 0.21, 0, 0.065], [-0.11, 0.16, 0, 0.04]]) g.add(part(fluff, M.sheep, x, y, z, r));   // 복슬 털
+    g.add(part(sphere, M.face, 0.14, 0.18, 0, 0.045, 0.042, 0.036));
+    g.add(part(fluff, M.sheep, 0.13, 0.225, 0, 0.03));                                   // 앞머리 털
+    for (const s of [1, -1]) g.add(part(sphere, M.face, 0.13, 0.19, 0.045 * s, 0.022, 0.01, 0.012));   // 귀
+    eyes(g, 0.172, 0.195, 0.018, 0.006);
+    for (const [x, z] of [[0.07, 0.04], [0.07, -0.04], [-0.07, 0.04], [-0.07, -0.04]]) g.add(part(cyl, M.face, x, 0.045, z, 0.013, 0.09, 0.013));
   } else {
-    g.add(part(sphere, M.cat, 0, 0.07, 0, 0.09, 0.05, 0.045));
-    g.add(part(sphere, M.cat, 0.1, 0.12, 0, 0.045));
-    for (const z of [0.022, -0.022]) g.add(part(cone, M.cat, 0.11, 0.17, z, 0.015, 0.03, 0.015));
-    g.add(part(cyl, M.cat, -0.12, 0.13, 0, 0.008, 0.12, 0.008).rotateZ(0.6));    // 꼬리
+    g.add(part(sphere, M.cat, 0, 0.075, 0, 0.09, 0.05, 0.045));
+    g.add(part(sphere, M.catLight, 0.02, 0.06, 0, 0.07, 0.035, 0.038));                  // 배
+    g.add(part(sphere, M.cat, 0.1, 0.125, 0, 0.045, 0.042, 0.045));
+    g.add(part(sphere, M.catLight, 0.135, 0.11, 0, 0.02, 0.016, 0.022));                 // 주둥이
+    g.add(part(sphere, M.pink, 0.155, 0.118, 0, 0.006));                                  // 코
+    for (const s of [1, -1]) {
+      g.add(part(cone, M.cat, 0.1, 0.175, 0.024 * s, 0.017, 0.035, 0.012));
+      g.add(part(cone, M.pink, 0.104, 0.172, 0.024 * s, 0.009, 0.022, 0.006));          // 귀 안쪽
+    }
+    eyes(g, 0.138, 0.135, 0.018, 0.007);
+    for (const [x, z] of [[0.06, 0.025], [0.06, -0.025], [-0.06, 0.025], [-0.06, -0.025]]) g.add(part(cyl, M.cat, x, 0.03, z, 0.011, 0.06, 0.011));
+    g.add(part(cyl, M.cat, -0.11, 0.1, 0, 0.009, 0.08, 0.009).rotateZ(0.9));             // 꼬리 (두 마디로 휘게)
+    g.add(part(cyl, M.cat, -0.15, 0.16, 0, 0.008, 0.07, 0.008).rotateZ(0.2));
   }
   return g;
 }

@@ -28,7 +28,7 @@ export function createOcean(sunDir: THREE.Vector3) {
     waterNormals: normals,
     sunDirection: sunDir,
     sunColor: 0xfff6e8,
-    waterColor: 0x0a6a88,
+    waterColor: 0x0a4f86,
     distortionScale: 1.2,
   });
   water.rotation.x = -Math.PI / 2;
@@ -52,7 +52,7 @@ export function createOcean(sunDir: THREE.Vector3) {
       float s = landS(worldPosition.xz);`)
     .replace('vec3 scatter = max( 0.0, dot( surfaceNormal, eyeDirection ) ) * waterColor;', `
       float shallow = 1.0 - smoothstep(0.0, 3.0, depth);
-      vec3 scatter = max( 0.0, dot( surfaceNormal, eyeDirection ) ) * mix(waterColor, vec3(0.05, 0.6, 0.6), shallow) * 1.6;
+      vec3 scatter = max( 0.0, dot( surfaceNormal, eyeDirection ) ) * mix(waterColor, vec3(0.04, 0.5, 0.66), shallow) * 1.6;
       reflectance *= 1.0 - shallow * 0.5;`)
     .replace('vec3 outgoingLight = albedo;', `
       float n = noise.x;

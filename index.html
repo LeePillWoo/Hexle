@@ -9,24 +9,32 @@
     .panel { position: fixed; background: #f3e6c4ee; border: 2px solid #a8865a; border-radius: 10px; padding: 12px 14px; box-shadow: 0 4px 14px #0005; }
     .title { font-weight: 700; font-size: 13px; letter-spacing: .05em; color: #7a5a32; margin-bottom: 6px; }
     button { font: inherit; cursor: pointer; border: 1px solid #a8865a; border-radius: 6px; background: #e4cf9f; padding: 4px 12px; color: inherit; }
-    #inv { bottom: 14px; left: 50%; transform: translateX(-50%); width: min(720px, calc(100vw - 60px)); text-align: center; }
-    #gain { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
-    #cards { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; min-height: 72px; align-items: center; max-height: 160px; overflow-y: auto; }
+    .inv { bottom: 14px; width: min(340px, calc(50vw - 40px)); text-align: center; }
+    #tileInv { left: 14px; }
+    #itemInv { right: 14px; }
+    .inv button.add { width: 100%; margin: 4px 0 8px; font-weight: 700; }
+    .cards { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; min-height: 72px; align-items: center; max-height: 160px; overflow-y: auto; }
     .card { width: 60px; height: 72px; font-size: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: #fbf3dc; padding: 2px; }
     .card b { font-size: 24px; }
     .card small { font-size: 10px; color: #8a6a42; }
     .card.item { background: #e8f2f8; }
     .card.sel { outline: 3px solid #e8a33a; background: #fff2c2; }
-    #msg { min-height: 18px; font-size: 13px; font-weight: 600; margin-top: 6px; }
+    #msg { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: 700; text-shadow: 0 0 6px #fff, 0 0 2px #fff; white-space: nowrap; pointer-events: none; }
     #toggles { top: 14px; right: 14px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   </style>
 </head>
 <body>
-  <div class="panel" id="inv">
-    <div id="gain"><button id="addTile">+ 타일 추가</button><button id="addItem">+ 아이템 추가</button></div>
-    <div id="cards"></div>
-    <div id="msg"></div>
+  <div class="panel inv" id="tileInv">
+    <div class="title">타일</div>
+    <button class="add" id="addTile">+ 타일 추가</button>
+    <div class="cards" id="tileCards"></div>
   </div>
+  <div class="panel inv" id="itemInv">
+    <div class="title">아이템</div>
+    <button class="add" id="addItem">+ 아이템 추가</button>
+    <div class="cards" id="itemCards"></div>
+  </div>
+  <div id="msg"></div>
   <div class="panel" id="toggles">
     <label><input type="checkbox" id="tGrid" checked /> 육각 그리드 (G)</label>
     <label><input type="checkbox" id="tEdge" checked /> 영역 경계선 (B)</label>
