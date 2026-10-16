@@ -97,44 +97,62 @@ function addItem(it: Item) { items.push(it); scene.add(it.obj); }
 refresh();
 scene.add(lighthouse(LIGHTHOUSE.x, LIGHTHOUSE.z));
 
-// ── 보유 카드: 타일 또는 아이템 ──
+// ── 인벤토리: 종류별 개수로 묶어 보관, 탭으로 분류 ──
 type Card = { type: 'tile'; kind: Kind } | { type: 'item'; kind: ItemKind };
-const cards: Card[] = [];
-let selected = -1;
+const inv = { tile: new Map<string, number>(), item: new Map<string, number>() };
+let selected: Card | null = null;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const tileCards = $('tileCards'), itemCards = $('itemCards'), msg = $('msg');
+const msg = $('msg');
 const say = (text: string, ok = true) => { msg.textContent = text; msg.style.color = ok ? '#2f7a2f' : '#b3261e'; };
 // 받침 유무로 조사 고르기 (물고기는 / 상어를)
 const josa = (w: string, withFinal: string, without: string) => w + ((w.charCodeAt(w.length - 1) - 0xac00) % 28 ? withFinal : without);
 const pickRandom = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+const give = (c: Card) => { inv[c.type].set(c.kind, (inv[c.type].get(c.kind) ?? 0) + 1); render(); };
 
-$('addTile').onclick = () => { const kind = pickRandom(TILE_KINDS); cards.push({ type: 'tile', kind }); say(`${TILE_INFO[kind].name} 타일을 얻었어요`); render(); };
-$('addItem').onclick = () => { const kind = pickRandom(ITEM_KINDS); cards.push({ type: 'item', kind }); say(`${josa(ITEM_INFO[kind].name, "을", "를")} 얻었어요`); render(); };
+const TABS = {
+  tile: [['전체', TILE_KINDS], ['자연', ['grass', 'forest', 'flower']], ['지형', ['mountain', 'beach']], ['마을', ['farm', 'house']]],
+  item: [['전체', ITEM_KINDS], ['땅', ['sheep', 'cat']], ['바다', ['shark', 'boat']], ['호수', ['fish']]],
+} as const satisfies Record<'tile' | 'item', readonly (readonly [string, readonly string[]])[]>;
+const tab = { tile: 0, item: 0 };
+const SLOTS = 20;   // 5열 × 4줄 고정 — 카드 수가 바뀌어도 패널 크기·버튼 위치가 그대로
 
-// 타일은 왼쪽, 아이템은 오른쪽 패널에 (선택 인덱스는 cards 전체 기준)
+$('addTile').onclick = () => { const kind = pickRandom(TILE_KINDS); give({ type: 'tile', kind }); say(`${TILE_INFO[kind].name} 타일을 얻었어요`); };
+$('addItem').onclick = () => { const kind = pickRandom(ITEM_KINDS); give({ type: 'item', kind }); say(`${josa(ITEM_INFO[kind].name, "을", "를")} 얻었어요`); };
+
 function render() {
-  const els = cards.map((c, i) => {
-    const el = document.createElement('button');
-    const info = c.type === 'tile' ? TILE_INFO[c.kind] : ITEM_INFO[c.kind];
-    const where = c.type === 'tile' ? '타일' : PLACE_NAME[ITEM_INFO[c.kind].place];
-    el.className = `card ${c.type}` + (i === selected ? ' sel' : '');
-    el.innerHTML = `<b>${info.icon}</b>${info.name}<small>${where}</small>`;
-    el.onclick = () => select(i === selected ? -1 : i);
-    return el;
-  });
-  tileCards.replaceChildren(...els.filter((_, i) => cards[i].type === 'tile'));
-  itemCards.replaceChildren(...els.filter((_, i) => cards[i].type === 'item'));
-  if (!tileCards.children.length) tileCards.textContent = '타일 추가 버튼을 눌러 보세요';
-  if (!itemCards.children.length) itemCards.textContent = '아이템 추가 버튼을 눌러 보세요';
+  for (const type of ['tile', 'item'] as const) {
+    const tabs = TABS[type], have = inv[type];
+    const total = (kinds: readonly string[]) => kinds.reduce((s, k) => s + (have.get(k) ?? 0), 0);
+    $(`${type}Tabs`).replaceChildren(...tabs.map(([name, kinds], i) => {
+      const b = document.createElement('button');
+      b.className = 'tab' + (i === tab[type] ? ' on' : '');
+      b.innerHTML = `${name} <i>${total(kinds)}</i>`;
+      b.onclick = () => { tab[type] = i; render(); };
+      return b;
+    }));
+    const kinds = tabs[tab[type]][1].filter(k => have.get(k));
+    const slots: HTMLElement[] = kinds.map(kind => {
+      const el = document.createElement('button');
+      const info = type === 'tile' ? TILE_INFO[kind as Kind] : ITEM_INFO[kind as ItemKind];
+      const where = type === 'tile' ? '타일' : PLACE_NAME[ITEM_INFO[kind as ItemKind].place];
+      const on = selected?.type === type && selected.kind === kind;
+      el.className = `card ${type}` + (on ? ' sel' : '');
+      el.innerHTML = `<b>${info.icon}</b>${info.name}<small>${where}</small><em>×${have.get(kind)}</em>`;
+      el.onclick = () => select(on ? null : { type, kind } as Card);
+      return el;
+    });
+    while (slots.length < SLOTS || slots.length % 5) slots.push(Object.assign(document.createElement('div'), { className: 'slot' }));
+    $(`${type}Cards`).replaceChildren(...slots);
+  }
 }
-function select(i: number) {
-  selected = i;
-  overlay.cands.visible = cards[i]?.type === 'tile';
+function select(c: Card | null) {
+  selected = c;
+  overlay.cands.visible = c?.type === 'tile';
   overlay.hover(undefined);
   ghost.visible = false;
   render();
-  if (i >= 0) say(cards[i].type === 'tile' ? '빛나는 칸을 클릭해 배치 · Esc 취소'
-    : `${PLACE_NAME[ITEM_INFO[cards[i].kind as ItemKind].place]}에만 놓을 수 있어요 · Esc 취소`);
+  if (c) say(c.type === 'tile' ? '빛나는 칸을 클릭해 배치 · Esc 취소'
+    : `${PLACE_NAME[ITEM_INFO[c.kind].place]}에만 놓을 수 있어요 · Esc 취소`);
 }
 render();
 
@@ -153,7 +171,7 @@ function pointAt(e: PointerEvent) {
   return pick(ray.ray);
 }
 function hover(e: PointerEvent): { hex?: Hex; p?: THREE.Vector3; ok: boolean } {
-  const card = cards[selected], p = pointAt(e);
+  const card = selected, p = pointAt(e);
   if (!card || !p) { ghost.visible = false; return { ok: false }; }
   if (card.type === 'tile') {
     const hex = overlay.hover(fromWorld(p.x, p.z));
@@ -166,26 +184,25 @@ function hover(e: PointerEvent): { hex?: Hex; p?: THREE.Vector3; ok: boolean } {
   return { p, ok };
 }
 const canvas = renderer.domElement;
-canvas.addEventListener('pointermove', e => { if (selected >= 0) hover(e); });
+canvas.addEventListener('pointermove', e => { if (selected) hover(e); });
 let down = { x: 0, y: 0 };
 canvas.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
 canvas.addEventListener('pointerup', e => {
-  if (selected < 0 || e.button !== 0 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return; // 드래그는 카메라 조작
-  const card = cards[selected], h = hover(e);
+  if (!selected || e.button !== 0 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return; // 드래그는 카메라 조작
+  const card = selected, h = hover(e);
   if (!h.ok) {
     if (card.type === 'item') say(`${josa(ITEM_INFO[card.kind].name, "은", "는")} ${PLACE_NAME[ITEM_INFO[card.kind].place]}에만 놓을 수 있어요`, false);
     return;
   }
-  cards.splice(selected, 1);
+  const left = inv[card.type].get(card.kind)! - 1;
+  if (left) inv[card.type].set(card.kind, left);
+  else inv[card.type].delete(card.kind);
   if (card.type === 'tile') {
     land.push({ hex: h.hex!, kind: card.kind });
-    select(-1);
     refresh();
-  } else {
-    addItem(createItem(card.kind, h.p!.x, h.p!.z));
-    select(-1);
-  }
-  say('배치했어요');
+  } else addItem(createItem(card.kind, h.p!.x, h.p!.z));
+  select(left ? card : null);   // 남아 있으면 같은 종류를 계속 배치
+  say(left ? `배치했어요 · ${left}개 남음` : '배치했어요');
 });
 
 // ── 토글 ──
@@ -195,7 +212,7 @@ tGrid.onchange = tEdge.onchange = syncToggles;
 addEventListener('keydown', e => {
   if (e.key === 'g' || e.key === 'G') tGrid.checked = !tGrid.checked;
   if (e.key === 'b' || e.key === 'B') tEdge.checked = !tEdge.checked;
-  if (e.key === 'Escape') { select(-1); say(''); }
+  if (e.key === 'Escape') { select(null); say(''); }
   syncToggles();
 });
 
@@ -217,5 +234,5 @@ renderer.setAnimationLoop(t => {
 });
 
 // 개발 서버에서만: 콘솔·자동 테스트용 핸들
-if (import.meta.env.DEV) Object.assign(window, { hexle: { land, items, cards, refresh, render, camera, controls,
+if (import.meta.env.DEV) Object.assign(window, { hexle: { land, items, inv, give, refresh, render, camera, controls,
   spawn: (k: ItemKind, x: number, z: number) => addItem(createItem(k, x, z)) } });
