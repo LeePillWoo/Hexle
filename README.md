@@ -15,6 +15,7 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # dist/
 node src/core/hex.check.ts   # 좌표 수학 자체 검사
+npm run check                # 개발 서버를 띄운 채로: 헤드리스 크롬 자동 점검 + 스크린샷
 ```
 
 ## 구조

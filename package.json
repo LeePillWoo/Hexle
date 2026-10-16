@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build"
+    "build": "tsc && vite build",
+    "check": "node scripts/check.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"
