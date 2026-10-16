@@ -4,9 +4,41 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Hexle</title>
-  <style>html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }</style>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font: 15px system-ui, sans-serif; color: #3b2c1a; }
+    .panel { position: fixed; background: #f3e6c4ee; border: 2px solid #a8865a; border-radius: 10px; padding: 12px 14px; box-shadow: 0 4px 14px #0005; }
+    .title { font-weight: 700; font-size: 13px; letter-spacing: .05em; color: #7a5a32; margin-bottom: 6px; }
+    #quiz { top: 14px; left: 14px; width: 220px; }
+    #q { font-size: 30px; font-weight: 800; margin: 4px 0 8px; }
+    #qf { display: flex; gap: 6px; }
+    #ans { width: 0; flex: 1; font-size: 20px; padding: 4px 8px; border: 1px solid #a8865a; border-radius: 6px; background: #fffaf0; }
+    button { font: inherit; cursor: pointer; border: 1px solid #a8865a; border-radius: 6px; background: #e4cf9f; padding: 4px 12px; }
+    #msg { min-height: 20px; margin-top: 6px; font-weight: 600; }
+    #inv { bottom: 14px; left: 50%; transform: translateX(-50%); min-width: 220px; text-align: center; }
+    #cards { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; min-height: 64px; align-items: center; }
+    .card { width: 64px; height: 84px; font-size: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: #fbf3dc; }
+    .card b { font-size: 26px; }
+    .card.sel { outline: 3px solid #e8a33a; background: #fff2c2; }
+    .hint { font-size: 12px; color: #7a5a32; margin-top: 6px; }
+    #toggles { top: 14px; right: 14px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+  </style>
 </head>
 <body>
+  <div class="panel" id="quiz">
+    <div class="title">문제를 풀면 타일을 얻어요</div>
+    <div id="q"></div>
+    <form id="qf"><input id="ans" type="number" inputmode="numeric" autocomplete="off" /><button>확인</button></form>
+    <div id="msg"></div>
+  </div>
+  <div class="panel" id="inv">
+    <div class="title">보유 타일</div>
+    <div id="cards"></div>
+    <div class="hint">카드를 고르고, 빛나는 칸을 클릭해 배치 · Esc 취소</div>
+  </div>
+  <div class="panel" id="toggles">
+    <label><input type="checkbox" id="tGrid" checked /> 육각 그리드 (G)</label>
+    <label><input type="checkbox" id="tEdge" checked /> 영역 경계선 (B)</label>
+  </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
