@@ -16,21 +16,18 @@
     #bar #erase.on { background: #ffe4e0; outline-color: #d04040; }
     #bar .sep { width: 1px; height: 22px; background: #a8865a; margin: 0 4px; }
     /* 인벤토리 */
-    .inv { bottom: 14px; width: min(340px, calc(50vw - 40px)); text-align: center; }
-    .inv.left { left: 14px; }
-    .inv.right { right: 14px; }
+    .inv { bottom: 14px; left: 14px; width: min(360px, calc(100vw - 60px)); text-align: center; }
     .inv .head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-    .inv .head .title { flex: 1; }
-    .inv .swap { display: none; font-size: 12px; padding: 2px 8px; }
+    .inv .main { flex: 1; display: flex; gap: 4px; }
+    .inv .mtab { flex: 1; font-weight: 700; padding: 4px 0; background: #eadcb4; border-color: #c4a87a; }
+    .inv .mtab i { font-style: normal; font-size: 11px; color: #8a6a42; font-weight: 400; }
+    .inv .mtab.on { background: #fff6dc; border-color: #a8865a; outline: 2px solid #e8a33a; }
     .inv .fold { font-size: 12px; padding: 1px 8px; }
     .inv.collapsed .add, .inv.collapsed .tabs, .inv.collapsed .cards { display: none; }
     .inv .row { display: flex; gap: 6px; margin: 2px 0 8px; }
     .inv .synth { flex: 1; font-weight: 700; }
     .inv .synth:disabled { opacity: .6; cursor: default; }
-    .inv.synthing { outline: 3px solid #9a6ad8; }
-    .inv.synthing .synth { background: #e6d8ff; }
     .inv .egg { width: 44px; height: 22px; padding: 0; border: none; background: transparent; cursor: default; }   /* 테스트용 숨은 버튼 */
-    .card u { position: absolute; top: 2px; left: 4px; text-decoration: none; font-size: 11px; font-weight: 700; color: #fff; background: #9a6ad8; border-radius: 8px; padding: 0 5px; }
     /* 문제 */
     #quiz { top: 62px; left: 10px; width: 250px; padding: 10px 12px; }
     #quiz .head { display: flex; align-items: center; gap: 6px; }
@@ -54,13 +51,12 @@
     .card em { position: absolute; top: 2px; right: 4px; font-style: normal; font-size: 11px; font-weight: 700; color: #fff; background: #a8865a; border-radius: 8px; padding: 0 5px; }
     .card b { font-size: 24px; }
     .card small { font-size: 10px; color: #8a6a42; }
-    .inv.right .card { background: #e8f2f8; }
+    .card.item { background: #e8f2f8; }
     .card.sel { outline: 3px solid #e8a33a; background: #fff2c2; }
-    #seaTiles, #deepItems { background: #cfe6efee; border-color: #5a8aa8; }
-    #seaTiles .title, #deepItems .title { color: #2f5a78; }
-    #seaTiles .tab, #deepItems .tab { background: #bdd8e6; border-color: #8ab0c4; }
-    #seaTiles .tab.on, #deepItems .tab.on { background: #eaf6fb; }
-    #seaTiles .slot, #deepItems .slot { background: #dcecf3; border-color: #9cc0d2; }
+    #seaInv { background: #cfe6efee; border-color: #5a8aa8; }
+    #seaInv .tab, #seaInv .mtab { background: #bdd8e6; border-color: #8ab0c4; }
+    #seaInv .tab.on, #seaInv .mtab.on { background: #eaf6fb; }
+    #seaInv .slot { background: #dcecf3; border-color: #9cc0d2; }
     /* 메시지·확인 창 */
     #msg { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: 700; text-shadow: 0 0 6px #fff, 0 0 2px #fff; white-space: nowrap; pointer-events: none; }
     #modal { position: fixed; inset: 0; background: #0006; display: flex; align-items: center; justify-content: center; z-index: 10; }
@@ -78,7 +74,6 @@
       #bar .label { display: none; }
       #bar .sep { margin: 0 2px; }
       .inv { left: 8px; right: 8px; bottom: 8px; width: auto; padding: 8px 10px; }
-      .inv .swap { display: inline-block; }
       .inv .row { margin: 0 0 6px; }
       #quiz { top: 54px; left: 8px; right: 8px; width: auto; padding: 6px 10px; }
       #quiz .modes { margin: 6px 0 2px; }

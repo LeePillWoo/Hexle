@@ -6,7 +6,7 @@ import { terrain } from './world/terrain';
 import { createOverlay } from './world/overlay';
 import { createCamera } from './render/camera';
 import { createPostFX } from './render/postfx';
-import { createInventory, type Inventory } from './ui/inventory';
+import { createDock, type Section } from './ui/inventory';
 import { createHud, type Mode } from './ui/hud';
 import { mountQuiz } from './ui/quiz';
 import { setupPlacement, type Selection } from './ui/placement';
@@ -40,7 +40,7 @@ scene.add(water.group, terrain, overlay.group, state.group);
 // ── UI ──
 const josa = (w: string, withFinal: string, without: string) => w + ((w.charCodeAt(w.length - 1) - 0xac00) % 28 ? withFinal : without);
 const pickRandom = <T,>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)];
-let selection: Selection | null = null, side: 'tile' | 'item' = 'tile', loading = false;
+let selection: Selection | null = null, loading = false;
 
 const hud = createHud({
   onMode: m => setMode(m),
@@ -61,35 +61,29 @@ const hud = createHud({
   onEscape: () => { if (hud.erasing) hud.setErase(false); else choose(null); },
 });
 const TILE_SUB: Record<string, string> = { attach: '섬에 붙여서', island: '바다에 새 섬', sea: '바다 칸' };
-const swap = () => { side = side === 'tile' ? 'item' : 'tile'; layout(); };
 const synthMsg = (name: (k: string) => string) => (a: string, b: string, r: string) => hud.say(`합성: ${name(a)} + ${name(b)} → ${name(r)}!`);
-const tileInv = (id: string, title: string, tabs: typeof TILE_TABS.land | typeof TILE_TABS.sea) => createInventory({
-  id, title, side: 'left', tabs, swapLabel: '아이템 ▸', onSwap: swap, onChange: persist, onSynth: synthMsg(k => TILE_INFO[k as Kind].name),
-  info: k => ({ ...TILE_INFO[k as Kind], sub: TILE_SUB[TILE_INFO[k as Kind].rule] }),
+const tileSection = (id: string, tabs: typeof TILE_TABS.land | typeof TILE_TABS.sea) => ({
+  id, label: '🧩 타일', cls: 'tile', tabs, onSynth: synthMsg(k => TILE_INFO[k as Kind].name),
+  info: (k: string) => ({ ...TILE_INFO[k as Kind], sub: TILE_SUB[TILE_INFO[k as Kind].rule] }),
   roll: () => pickRandom(tabs[0][1]),
-  onSelect: k => choose(k ? { type: 'tile', kind: k as Kind } : null),
-  onAdd: k => hud.say(`${TILE_INFO[k as Kind].name} 타일을 얻었어요`),
+  onSelect: (k: string | null) => choose(k ? { type: 'tile', kind: k as Kind } : null),
+  onAdd: (k: string) => hud.say(`${TILE_INFO[k as Kind].name} 타일을 얻었어요`),
 });
-const itemInv = (id: string, title: string, tabs: typeof ITEM_TABS.island | typeof ITEM_TABS.deep) => createInventory({
-  id, title, side: 'right', tabs, swapLabel: '◂ 타일', onSwap: swap, onChange: persist, onSynth: synthMsg(k => ITEM_INFO[k as ItemKind].name),
-  info: k => ({ ...ITEM_INFO[k as ItemKind], sub: PLACE_NAME[ITEM_INFO[k as ItemKind].medium] }),
+const itemSection = (id: string, tabs: typeof ITEM_TABS.island | typeof ITEM_TABS.deep) => ({
+  id, label: '🐾 아이템', cls: 'item', tabs, onSynth: synthMsg(k => ITEM_INFO[k as ItemKind].name),
+  info: (k: string) => ({ ...ITEM_INFO[k as ItemKind], sub: PLACE_NAME[ITEM_INFO[k as ItemKind].medium] }),
   roll: () => pickRandom(tabs[0][1]),
-  onSelect: k => choose(k ? { type: 'item', kind: k as ItemKind } : null),
-  onAdd: k => hud.say(`${josa(ITEM_INFO[k as ItemKind].name, '을', '를')} 얻었어요`),
+  onSelect: (k: string | null) => choose(k ? { type: 'item', kind: k as ItemKind } : null),
+  onAdd: (k: string) => hud.say(`${josa(ITEM_INFO[k as ItemKind].name, '을', '를')} 얻었어요`),
 });
-const invs = {
-  island: [tileInv('landTiles', '섬 타일', TILE_TABS.land), itemInv('islandItems', '섬 아이템', ITEM_TABS.island)],
-  sea: [tileInv('seaTiles', '바닷속 타일', TILE_TABS.sea), itemInv('deepItems', '바닷속 아이템', ITEM_TABS.deep)],
-} satisfies Record<Mode, Inventory[]>;
+// 모드마다 인벤토리 패널 하나 (타일·아이템은 탭). 섹션 id 는 저장 데이터 호환을 위해 예전 이름 그대로
+const docks = {
+  island: createDock({ id: 'islandInv', onChange: persist, sections: [tileSection('landTiles', TILE_TABS.land), itemSection('islandItems', ITEM_TABS.island)] }),
+  sea: createDock({ id: 'seaInv', onChange: persist, sections: [tileSection('seaTiles', TILE_TABS.sea), itemSection('deepItems', ITEM_TABS.deep)] }),
+};
+const invs = { island: docks.island.sections, sea: docks.sea.sections } satisfies Record<Mode, Section[]>;
 const allInvs = Object.values(invs).flat();
-// 보이는 패널: 모드에 맞는 한 쌍. 좁은 화면이면 그중 타일/아이템 하나만
-function layout() {
-  for (const [m, [tiles, items]] of Object.entries(invs)) {
-    tiles.show(m === hud.mode && (!narrow.matches || side === 'tile'));
-    items.show(m === hud.mode && (!narrow.matches || side === 'item'));
-  }
-}
-narrow.addEventListener('change', layout);
+const layout = () => { for (const [m, d] of Object.entries(docks)) d.show(m === hud.mode); };
 function setMode(m: Mode) {
   hud.setMode(m, false);
   layout();
@@ -182,4 +176,4 @@ renderer.setAnimationLoop(t => {
 });
 
 // 개발 서버에서만: 콘솔·자동 테스트용 핸들
-if (import.meta.env.DEV) Object.assign(window, { hexle: { state, invs, choose, hud, cam, setMode, persist, canPlace, probe: placement.probe, refresh: state.refresh } });
+if (import.meta.env.DEV) Object.assign(window, { hexle: { state, invs, docks, choose, hud, cam, setMode, persist, canPlace, probe: placement.probe, refresh: state.refresh } });

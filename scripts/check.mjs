@@ -53,7 +53,7 @@ console.log(await js(`(() => { const put = [['cow', 0.6, 0.4], ['chicken', -0.5,
   hexle.persist(); return 'items ' + hexle.state.items.length + (skipped.length ? ' (놓을 수 없는 자리라 건너뜀: ' + skipped + ')' : ''); })()`));
 console.log('canPlaceTile:', await js(`JSON.stringify({ attachOnSea: hexle.state.canPlaceTile('grass', { q: 8, r: 0 }), attachNext: hexle.state.canPlaceTile('grass', { q: -1, r: 0 }),
   isletNearLand: hexle.state.canPlaceTile('islet', { q: -1, r: 0 }), isletFar: hexle.state.canPlaceTile('islet', { q: -6, r: -3 }), reefOnLand: hexle.state.canPlaceTile('reef', { q: 0, r: 0 }), reefFar: hexle.state.canPlaceTile('reef', { q: 6, r: -4 }) })`));
-await js(`document.getElementById('tGrid').click(); document.getElementById('tEdge').click(); document.querySelector('#landTiles .egg').click(); document.querySelector('#islandItems .egg').click(); 0`);
+await js(`document.getElementById('tGrid').click(); document.getElementById('tEdge').click(); hexle.docks.island.el.querySelector('.egg').click(); (hexle.docks.island.el.querySelectorAll('.mtab')[1].click(), hexle.docks.island.el.querySelector('.egg').click(), hexle.docks.island.el.querySelectorAll('.mtab')[0].click()); 0`);
 await view(0.5, 0, 1, 0.5, 24, 15); await wait(3000); await shot('all');
 await view(1.5, 0, -0.5, 1.5, 6, 3.5); await wait(1500); await shot('land');
 await view(4.3, 0, 6.9, 4.3, 7, 11); await wait(1500); await shot('palace_top');
@@ -63,7 +63,7 @@ await view(9.5, -0.9, 1.5, 7.2, -0.5, 3.8); await wait(1500); await shot('reef_u
 await view(-9, -3.2, -2.5, -7.5, -2.4, 0.5); await wait(1500); await shot('trench_under');
 await view(1.5, 0.3, 0, 1.5, 12, 9); await wait(1200); await js(`hexle.cam.dive(true); 0`); await wait(3000);
 console.log('after dive:', await js(`hexle.hud.mode + ' underwater=' + hexle.cam.isUnderwater() + ' camY=' + hexle.cam.camera.position.y.toFixed(2)`));
-await js(`document.querySelector('#seaTiles .egg').click(); document.querySelector('#deepItems .egg').click(); 0`);
+await js(`hexle.docks.sea.el.querySelector('.egg').click(); (hexle.docks.sea.el.querySelectorAll('.mtab')[1].click(), hexle.docks.sea.el.querySelector('.egg').click()); 0`);
 await shot('dive_ui');
 await js(`hexle.cam.dive(false); 0`); await wait(3000);
 console.log('after surface:', await js(`hexle.hud.mode + ' underwater=' + hexle.cam.isUnderwater() + ' camY=' + hexle.cam.camera.position.y.toFixed(2)`));
@@ -78,12 +78,12 @@ for (const [op, d] of [['+', '1'], ['-', '2'], ['×', '3'], ['÷', '2'], ['rand'
   const before = await cardSum(); const r = await solveQuiz(false); console.log('quiz', op, d, ':', r, '| cards +' + ((await cardSum()) - before));
 }
 { const before = await cardSum(); console.log('quiz wrong:', await solveQuiz(true), '| cards +' + ((await cardSum()) - before)); }
-// 합성: 섬 타일 두 장을 넣으면 한 장이 나온다 (가장 적게 가진 종류 중)
-console.log('synth:', await js(`(() => { const inv = hexle.invs.island[0]; inv.set({ grass: 3, forest: 1 }); const el = inv.el;
-  el.querySelector('.synth').click(); const cards = [...el.querySelectorAll('.card')]; cards[0].click(); cards[0].click();
-  const ready = !el.querySelector('.synth').disabled; [...el.querySelectorAll('.card')]; el.querySelector('.synth').click();
-  const c = inv.counts(), total = Object.values(c).reduce((a, b) => a + b, 0); return 'ready=' + ready + ' total=' + total + ' ' + JSON.stringify(c) + ' msg=' + document.getElementById('msg').textContent; })()`));
-await js(`(() => { const el = hexle.invs.island[0].el; el.querySelector('.cancel').click(); return 0; })()`);
+// 합성: 가장 많은 카드(초원 3장) 두 장을 써서, 가장 적게 가진 종류 중 하나가 나온다
+console.log('synth:', await js(`(() => { const inv = hexle.invs.island[0]; inv.set({ grass: 3, forest: 1 }); hexle.docks.island.el.querySelector('.synth').click();
+  const c = inv.counts(); return JSON.stringify(c) + ' msg=' + document.getElementById('msg').textContent; })()`));
+await js(`hexle.persist(); 0`);
+console.log('synth one card:', await js(`(() => { const inv = hexle.invs.island[0]; inv.set({ grass: 1 }); return 'disabled=' + (hexle.docks.island.sections[0].renderBody(), hexle.docks.island.el.querySelector('.synth').disabled); })()`));
+await js(`hexle.persist(); 0`);
 await shot('quiz_ui');
 
 // 저장·복원: 새로고침 후 칸·아이템·카드 수가 같아야 한다
@@ -103,13 +103,13 @@ console.log('erase item:', await js(`'items=' + hexle.state.items.length + ' cow
 console.log('erase tile:', await js(`'cells=' + hexle.state.cells.length + ' farmCards=' + (hexle.invs.island[0].counts().farm ?? 0) + ' msg=' + document.getElementById('msg').textContent`));
 await js(`hexle.hud.setErase(false); 0`);
 
-// 모바일 레이아웃: 좁은 화면이면 타일/아이템 패널 중 하나만, 전환 버튼으로 바꾼다
+// 모바일 레이아웃: 패널 하나가 화면 폭에 맞고, 탭으로 타일·아이템을 바꾼다
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }); await wait(1500);
-await js(`document.querySelector('#landTiles .egg').click(); document.querySelector('#landTiles .egg').click(); 0`); await wait(300);
+await js(`hexle.docks.island.el.querySelector('.egg').click(); hexle.docks.island.el.querySelector('.egg').click(); 0`); await wait(300);
 await shot('mobile');
-console.log('mobile:', await js(`JSON.stringify({ narrow: matchMedia('(max-width: 760px)').matches, tilesShown: getComputedStyle(document.getElementById('landTiles')).display !== 'none', itemsShown: getComputedStyle(document.getElementById('islandItems')).display !== 'none', barW: Math.round(document.getElementById('bar').getBoundingClientRect().width) })`));
-await js(`document.querySelector('#landTiles .swap').click(); 0`); await wait(300);
-console.log('after swap:', await js(`JSON.stringify({ tilesShown: getComputedStyle(document.getElementById('landTiles')).display !== 'none', itemsShown: getComputedStyle(document.getElementById('islandItems')).display !== 'none' })`));
+console.log('mobile:', await js(`JSON.stringify({ narrow: matchMedia('(max-width: 760px)').matches, dockW: Math.round(hexle.docks.island.el.getBoundingClientRect().width), seaShown: getComputedStyle(hexle.docks.sea.el).display !== 'none' })`));
+await js(`hexle.docks.island.el.querySelectorAll('.mtab')[1].click(); 0`); await wait(300);
+console.log('item tab:', await js(`hexle.docks.island.el.querySelector('.mtab.on').textContent`));
 await shot('mobile_items');
 await send('Emulation.clearDeviceMetricsOverride'); await wait(800);
 
