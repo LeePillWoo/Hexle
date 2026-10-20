@@ -10,7 +10,7 @@ import { emit } from '../audio/emitters';
 import { barnGeo, eruption, fruitStallGeo, marketStallGeo, palmGeo as PALM } from './extras';
 import { batch, inHex, lumpy, merge, paint, placed, prism, puffs, slope, smokeTex, vc, vcFlat, type Ctx } from './models';
 import type { Kind } from './kinds';
-import { benchGeo, towns, type Home, type Spot } from './villagers';
+import { benchGeo, TALL, towns, type Home, type Spot } from './villagers';
 
 // ── 모델 ──
 const GREENS = [0x1e5a2e, 0x24683a, 0x2b7543, 0x33824c, 0x3c8f55];
@@ -108,19 +108,49 @@ const scarecrowGeo = merge(
   paint(new THREE.IcosahedronGeometry(0.04, 1).translate(0, 0.41, 0), 0xe8d6a8),
   paint(new THREE.ConeGeometry(0.07, 0.06, 10).translate(0, 0.46, 0), 0xc9a24a),
 );
-function houseGeo(roof: number) {
+// 집: 문이 +z. tall 이면 2층(벽이 0.14 높고 위층 창), timber 면 목조 골조(기둥·들보·가새). 창마다 창틀·덧창·창턱, 문엔 문틀·손잡이·디딤돌·차양
+function houseGeo(roof: number, wall: number, shutter: number, timber: boolean, tall: boolean) {
+  const B = (w: number, h: number, d: number, x: number, y: number, z: number, c: number) => paint(new THREE.BoxGeometry(w, h, d).translate(x, y, z), c);
+  const H = tall ? TALL : 0, wh = 0.28 + H, top = 0.06 + wh, beam = 0x5a3a22, dark = new THREE.Color(roof).multiplyScalar(0.72).getHex();
+  // 창 하나: 유리 + 흰 창틀 + 창턱 + 양쪽 덧창. axis: 'z' 면 앞뒤 벽(side = ±1), 'x' 면 옆벽
+  const win = (x: number, y: number, z: number, side: number, axis: 'x' | 'z' = 'z') => {
+    const parts = [B(0.08, 0.08, 0.02, 0, 0, 0, 0x3d5a78), B(0.096, 0.096, 0.012, 0, 0, -0.004 * side, 0xf4f0e6), B(0.104, 0.012, 0.03, 0, -0.05, 0.008 * side, 0xe8e0d0),
+      ...[-1, 1].map(s => B(0.03, 0.086, 0.008, s * 0.065, 0, 0.004 * side, shutter))];
+    const g = merge(...parts);
+    if (axis === 'x') g.rotateY(Math.PI / 2);
+    return g.translate(x, y, z);
+  };
+  const roofY = 0.49 + H, ridge = roofY + 0.31;
   return merge(
-    paint(new THREE.BoxGeometry(0.48, 0.06, 0.4).translate(0, 0.03, 0), 0x8f8a80),          // 주춧돌
-    paint(new THREE.BoxGeometry(0.44, 0.28, 0.36).translate(0, 0.2, 0), 0xf2e6c8),          // 벽
-    paint(prism(0.31, 0.54).translate(0, 0.49, 0), roof),                                   // 지붕(처마 포함)
-    paint(new THREE.BoxGeometry(0.07, 0.2, 0.07).translate(0.13, 0.6, -0.07), 0xb8a890),    // 굴뚝
-    paint(new THREE.BoxGeometry(0.1, 0.17, 0.02).translate(0, 0.145, 0.185), 0x7a5432),    // 문
-    ...[-0.14, 0.14].map(x => paint(new THREE.BoxGeometry(0.08, 0.08, 0.02).translate(x, 0.21, 0.185), 0x3d5a78)),  // 앞 창
-    ...[-0.1, 0.1].map(x => paint(new THREE.BoxGeometry(0.08, 0.08, 0.02).translate(x, 0.21, -0.185), 0x3d5a78)),   // 뒤 창
-    paint(new THREE.BoxGeometry(0.02, 0.08, 0.08).translate(0.225, 0.21, 0), 0x3d5a78),      // 옆 창
+    B(0.48, 0.06, 0.4, 0, 0.03, 0, 0x8f8a80),                               // 주춧돌
+    B(0.46, 0.02, 0.38, 0, 0.065, 0, 0x7a756c),
+    B(0.44, wh, 0.36, 0, 0.06 + wh / 2, 0, wall),                            // 벽
+    ...(timber ? [
+      ...[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([sx, sz]) => B(0.026, wh, 0.026, sx * 0.214, 0.06 + wh / 2, sz * 0.174, beam)),   // 모서리 기둥
+      ...[0.06 + 0.14, top - 0.01].flatMap(y => [B(0.45, 0.018, 0.01, 0, y, 0.181, beam), B(0.45, 0.018, 0.01, 0, y, -0.181, beam), B(0.01, 0.018, 0.37, 0.221, y, 0, beam), B(0.01, 0.018, 0.37, -0.221, y, 0, beam)]),
+      ...[-1, 1].map(s => B(0.012, 0.17, 0.012, 0, 0, 0, beam).rotateX(s * 0.6).translate(-0.222, 0.135, s * 0.08)),   // 옆벽 가새
+    ] : []),
+    paint(prism(0.31, 0.54).translate(0, roofY, 0), roof),                   // 지붕(처마 포함)
+    B(0.56, 0.026, 0.026, 0, ridge, 0, dark),                                // 용마루
+    ...[0.3, 0.55, 0.8].flatMap(f => [-1, 1].map(s =>                         // 기와 줄
+      B(0.545, 0.008, 0.012, 0, 0, 0, dark).rotateX(s * Math.PI / 3).translate(0, ridge - 0.465 * f + 0.5 * 0.006, s * (0.27 * f + 0.866 * 0.006)))),
+    B(0.07, 0.2, 0.07, 0.13, 0.6 + H, -0.07, 0xb8a890),                      // 굴뚝
+    B(0.09, 0.02, 0.09, 0.13, 0.71 + H, -0.07, 0x6a625a),
+    B(0.13, 0.2, 0.012, 0, 0.16, 0.182, beam),                               // 문틀
+    B(0.1, 0.17, 0.02, 0, 0.145, 0.185, 0x7a5432),                           // 문
+    B(0.012, 0.012, 0.012, 0.03, 0.14, 0.198, 0xd8b850),                     // 손잡이
+    B(0.16, 0.02, 0.06, 0, 0.01, 0.235, 0x9a958a),                           // 디딤돌
+    B(0.18, 0.012, 0.08, 0, 0, 0, roof).rotateX(0.35).translate(0, 0.27, 0.215),   // 문 위 차양
+    win(-0.14, 0.21, 0.185, 1), win(0.14, 0.21, 0.185, 1),                   // 앞 창
+    win(-0.1, 0.21, -0.185, -1), win(0.1, 0.21, -0.185, -1),                 // 뒤 창
+    win(0.225, 0.21, 0, 1, 'x'),                                             // 옆 창
+    ...(tall ? [win(-0.14, 0.35, 0.185, 1), win(0, 0.35, 0.185, 1), win(0.14, 0.35, 0.185, 1), win(0, 0.35, -0.185, -1)] : []),   // 위층 창
+    paint(new THREE.CylinderGeometry(0.03, 0.03, 0.012, 12).rotateZ(Math.PI / 2).translate(0.272, roofY + 0.02, 0), 0x3d5a78),   // 박공 둥근 창
   );
 }
-const ROOFS = [0xc0563f, 0x3f6fa0, 0x8a4f9e, 0x4f8a4a].map(houseGeo);
+// 지붕 4색 × (단층·2층) × (회벽·목조) = 16종. 벽·덧창 색도 섞는다
+const WALLS = [0xf2e6c8, 0xf4ecd8, 0xe8dcc0, 0xf0e2d0], SHUTTERS = [0x4f7a4a, 0x3f6fa0, 0x9a4a3a, 0x6b4a2b];
+const HOUSES = Array.from({ length: 16 }, (_, i) => ({ tall: i >= 8, geo: houseGeo([0xc0563f, 0x3f6fa0, 0x8a4f9e, 0x4f8a4a][i % 4], WALLS[(i >> 1) % 4], SHUTTERS[(i * 3) % 4], (i >> 2) % 2 === 1, i >= 8) }));
 const churchGeo = merge(
   paint(new THREE.BoxGeometry(0.62, 0.06, 0.42).translate(0, 0.03, 0), 0x8f8a80),
   paint(new THREE.BoxGeometry(0.58, 0.36, 0.38).translate(0, 0.24, 0), 0xf4ede0),
@@ -358,10 +388,11 @@ function village(ctx: Ctx, comp: Hex[]) {
     const rnd = rng(seedOf(h) + 23), c = toWorld(h);
     if (comp.length === 1) {
       const rot = rnd() * 0.6 - 0.3;
-      ctx.g.add(placed(ROOFS[0], c.x, heightFast(c.x, c.z), c.z, 1.25, rot));
+      const house = HOUSES[5];   // 외딴 집은 목조 단층
+      ctx.g.add(placed(house.geo, c.x, heightFast(c.x, c.z), c.z, 1.25, rot));
       ctx.g.add(placed(crateGeo, c.x + 0.45, heightFast(c.x + 0.45, c.z + 0.2), c.z + 0.2, 1, rnd() * 6));
       ctx.g.add(placed(barrelGeo, c.x - 0.45, heightFast(c.x - 0.45, c.z + 0.25), c.z + 0.25));
-      allHomes.push({ x: c.x, z: c.z, face: rot, s: 1.25 });
+      allHomes.push({ x: c.x, z: c.z, face: rot, s: 1.25, tall: house.tall });
       spots.push({ x: c.x + Math.sin(rot) * 0.32, z: c.z + Math.cos(rot) * 0.32, hub: h, kind: 'door' },
         { x: c.x + 0.42, z: c.z + 0.4, hub: h, kind: 'stand', face: Math.PI }, { x: c.x - 0.42, z: c.z + 0.45, hub: h, kind: 'stand', face: Math.PI });
       continue;
@@ -388,8 +419,9 @@ function village(ctx: Ctx, comp: Hex[]) {
           || homes.some(o => Math.hypot(o.x - x, o.z - z) < 0.48)) continue;
         homes.push({ x, z });
         const face = Math.atan2(c.x - x, c.z - z), y = heightFast(x, z), s = 0.75 + rnd() * 0.15;
-        ctx.g.add(placed(ROOFS[Math.floor(rnd() * ROOFS.length)], x, y - 0.01, z, s, face));
-        allHomes.push({ x, z, face, s });
+        const house = HOUSES[Math.floor(rnd() * HOUSES.length)];
+        ctx.g.add(placed(house.geo, x, y - 0.01, z, s, face));
+        allHomes.push({ x, z, face, s, tall: house.tall });
         spots.push({ x: x + Math.sin(face) * (0.19 * s + 0.04), z: z + Math.cos(face) * (0.19 * s + 0.04), hub: h, kind: 'door' });
         if (rnd() < 0.6) {   // 집 뒤쪽 옆으로 울타리 한 칸
           const fx = x - Math.sin(face) * 0.26 + Math.cos(face) * 0.12, fz = z - Math.cos(face) * 0.26 - Math.sin(face) * 0.12;

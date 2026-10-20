@@ -23,7 +23,8 @@ const LOD = {
 }[TIER];
 
 // ── 마을 배치 기록 (village() 가 채우고 decorateAll 이 비운다) ──
-export type Home = { x: number; z: number; face: number; s: number };
+export const TALL = 0.14;   // 2층 집이 단층보다 높은 만큼
+export type Home = { x: number; z: number; face: number; s: number; tall: boolean };
 export type SpotKind = 'door' | 'stand' | 'well' | 'stall' | 'bench' | 'stroll';
 export type Spot = { x: number; z: number; hub: Hex; kind: SpotKind; face?: number; busy?: boolean };
 export type Town = { comp: Hex[]; well?: Hex; homes: Home[]; spots: Spot[]; stalls: { x: number; z: number; face: number }[] };
@@ -59,8 +60,8 @@ const HAIR = [0x3a2a1e, 0x6b4a2b, 0xc89a4a, 0x1e1a18, 0xa0522d];
 const HATS = [0xd9b552, 0x6b4a2b, 0x3f6fa0, 0xc0563f];
 
 // 집 소품 (집 기준 좌표: 문이 +z, 지붕 크기 1 기준)
-const flowerBox = merge(box(0.22, 0.025, 0.03, 0, 0.155, 0.205, 0x8a6038),
-  ...[0xe05a7a, 0xf0c040, 0xd04040, 0xb070e0, 0xf08a40].map((c, i) => ball(0.013, -0.08 + i * 0.04, 0.176, 0.205, c)));
+const flowerBox = merge(...[-0.14, 0.14].flatMap(x => [box(0.1, 0.025, 0.03, x, 0.148, 0.215, 0x8a6038),   // 앞 창 둘 아래
+  ...[0xe05a7a, 0xf0c040, 0xd04040].map((c, i) => ball(0.013, x - 0.03 + i * 0.03, 0.168, 0.215, c))]));
 const mailbox = merge(box(0.01, 0.09, 0.01, 0.21, 0.045, 0.3, 0x6b4a2b), box(0.03, 0.026, 0.045, 0.21, 0.1, 0.3, 0xb03a2e));
 const woodpile = merge(...[[-0.03, 0.012], [0, 0.012], [0.03, 0.012], [-0.015, 0.035], [0.015, 0.035], [0, 0.058]].map(([x, y]) =>
   paint(new THREE.CylinderGeometry(0.013, 0.013, 0.13, 6).rotateX(Math.PI / 2).translate(0.32 + x, y, -0.05), 0x8a5a33)));
@@ -68,11 +69,13 @@ const lineGeo = merge(...[-0.16, 0.16].map(z => box(0.008, 0.13, 0.008, -0.34, 0
 const clothGeo = box(0.003, 0.05, 0.045, 0, -0.025, 0);
 const garden = merge(box(0.26, 0.014, 0.16, 0, 0.007, -0.43, 0x6b4a2b),
   ...[0, 1, 2, 3, 4, 5].map(i => ball(0.022, -0.09 + (i % 3) * 0.09, 0.025, -0.47 + Math.floor(i / 3) * 0.08, i % 2 ? 0x6fb04a : 0x8ccc5e)));
+const upperGlow = merge(...[-0.14, 0, 0.14].map(x => box(0.07, 0.07, 0.004, x, 0.35, 0.19, 0xffcf70)), box(0.07, 0.07, 0.004, 0, 0.35, -0.19, 0xffcf70));   // 2층 창
 const windowsGlow = merge(...[-0.14, 0.14].map(x => box(0.07, 0.07, 0.004, x, 0.21, 0.19, 0xffcf70)),
   ...[-0.1, 0.1].map(x => box(0.07, 0.07, 0.004, x, 0.21, -0.19, 0xffcf70)), box(0.004, 0.07, 0.07, 0.229, 0.21, 0, 0xffcf70));
 const lampPost = merge(box(0.012, 0.17, 0.012, 0, 0.085, 0, 0x3a3a3a), paint(new THREE.ConeGeometry(0.026, 0.02, 4).rotateY(Math.PI / 4).translate(0, 0.205, 0), 0x3a3a3a));
 const lampGlow = box(0.028, 0.03, 0.028, 0, 0.18, 0, 0xffd27a);
-const VILLAGE_ANIMAL = 0.45;   // 마을 동물은 들판 동물보다 작게
+const VILLAGE_ANIMAL = 0.45;
+const BENCH = 0.6;             // 길가 벤치: 주민 키에 맞춘 크기 (앉는 판 높이 0.07 × 0.6)   // 마을 동물은 들판 동물보다 작게
 
 type P = { x: number; z: number };
 type Role = 'adult' | 'child' | 'elder' | 'vendor';
@@ -116,7 +119,7 @@ function build(town: Town) {
     if (road % (LOD.props < 1 ? 2 : 1) === 0) {   // 벤치: 길을 향해 앉는다
       const p = on(0.42, 0.2 * side);
       if (free(p.x, p.z, 0.3)) {
-        at(benchGeo, place(p.x, p.z, -Math.atan2(pb.z - pa.z, pb.x - pa.x)));
+        at(benchGeo, place(p.x, p.z, -Math.atan2(pb.z - pa.z, pb.x - pa.x)).scale(new THREE.Vector3(BENCH, BENCH, BENCH)));
         spots.push({ ...p, hub: a, kind: 'bench', face: Math.atan2(-px * side, -pz * side) });
       }
     }
@@ -140,10 +143,10 @@ function build(town: Town) {
     }
     const gp = toLocal(h, 0, -0.43);
     if (i % 4 === 2 && free(gp.x, gp.z, 0.2) && roadDist(gp.x, gp.z) > 0.25) at(garden, m);
-    if (LOD.glow && i % 5 < 2) at(windowsGlow, m, glow);
+    if (LOD.glow && i % 5 < 2) { at(windowsGlow, m, glow); if (h.tall) at(upperGlow, m, glow); }
     if (smoke < LOD.smoke && i % 2 === 0) {
       const c = toLocal(h, 0.13, -0.07);
-      updates.push(puffs(g, { x: c.x, y: heightFast(h.x, h.z) + 0.72 * h.s, z: c.z, n: 5, color: 0xdedad2, size: [0.05, 0.17], rise: 0.8, drift: 0.12, speed: 0.1, tex: smokeTex, opacity: 0.4, spread: 0.02 }));
+      updates.push(puffs(g, { x: c.x, y: heightFast(h.x, h.z) + (0.72 + (h.tall ? TALL : 0)) * h.s, z: c.z, n: 5, color: 0xdedad2, size: [0.05, 0.17], rise: 0.8, drift: 0.12, speed: 0.1, tex: smokeTex, opacity: 0.4, spread: 0.02 }));
       smoke++;
     }
   });
@@ -270,7 +273,7 @@ function build(town: Town) {
       }
       if (f.wait > 0) {
         f.wait -= dt;
-        if (f.sit) { f.legs = -1.4; f.armL = f.armR = -0.3; f.y = heightFast(f.x, f.z) + 0.025; }
+        if (f.sit) { f.legs = -1.4; f.armL = f.armR = -0.3; f.y = heightFast(f.x, f.z) + 0.07 * BENCH - 0.05 * f.size; }   // 엉덩이를 앉는 판 높이에
         else {
           f.legs *= 0.8; f.armL *= 0.8;
           f.armR = f.talk ? -0.5 + Math.sin(t * 5 + f.step) * 0.3 : f.armR * 0.8;   // 수다: 손짓
