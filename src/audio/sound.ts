@@ -5,6 +5,7 @@
 //  - 좌우 위치에 따라 왼쪽·오른쪽 스피커로 나누고, 물속에선 먹먹하게 깎는다.
 import * as THREE from 'three';
 import { emitters } from './emitters';
+import { lifeSfx } from '../tiles/life';
 import { surfaceAt } from '../world/terrain';
 import * as state from '../game/state';
 import type { ItemKind } from '../items/kinds';
@@ -253,6 +254,17 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
     if (active < MAX_SFX && !underwater) {
       if (t > birdAt && near * greens > 0.05) { chirp(near * greens * 0.5, rand(-0.8, 0.8)); birdAt = t + rand(2, 6) / (0.4 + greens); }
       if (t > gullAt && near * sea > 0.15) { voice(VOICES.seagull!, near * sea * 0.25, rand(-0.8, 0.8)); gullAt = t + rand(8, 18); }
+      // 구경 중인 장소의 생활 소리: 도끼질·칼 부딪힘·기타·물장구·셔터
+      const close = 1 - ss(4.5, 7, camDist);
+      for (const e of lifeSfx.splice(0)) {
+        if (active >= MAX_SFX || close < 0.1) break;
+        const pan = panFor(e.x, e.y, e.z);
+        if (e.kind === 'chop') noiseHit(0.35 * close, pan, 'lowpass', 900, 200, 0.09);
+        else if (e.kind === 'clang') tone([1800, 2700, 4100], 0.16 * close, pan, 0.25, 'triangle');
+        else if (e.kind === 'strum') tone([[196, 247, 294, 392], [220, 262, 330, 440], [175, 220, 262, 349]][Math.floor(Math.random() * 3)], 0.2 * close, pan, 0.9, 'triangle');
+        else if (e.kind === 'splash') noiseHit(0.22 * close, pan, 'highpass', 1500, 600, 0.35);
+        else noiseHit(0.15 * close, pan, 'highpass', 4000, 3000, 0.03);
+      }
       const town = (1 - ss(4.5, 7, camDist)) * W('house');   // 마을: 망치질 땅땅, 가끔 닭 울음
       if (t > hammerAt && town > 0.3) { const pan = rand(-0.6, 0.6); for (let i = 0; i < 3; i++) setTimeout(() => tone([1250, 3100], town * 0.18, pan, 0.08, 'triangle'), i * 420); hammerAt = t + rand(6, 14); }
       if (t > roosterAt && town > 0.3) { voice(V('sawtooth', 600, 450, 0.9, 1500, 3, { fm: 950, vib: 30, rate: 12 }), town * 0.25, rand(-0.7, 0.7)); roosterAt = t + rand(20, 40); }

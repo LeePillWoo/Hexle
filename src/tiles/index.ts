@@ -7,14 +7,16 @@ import { LAND_CLUSTER, LAND_SINGLE, lakeDecor } from './land';
 import { SEA_CLUSTER } from './sea';
 import { EXTRA_CLUSTER } from './extras';
 import { emitters } from '../audio/emitters';
-import { towns } from './villagers';
+import { notes, sites } from './life';
 
 export { lighthouse } from './land';
 
 export function decorateAll(cells: Cell[], lakes: Hex[]) {
   const byKey = new Map(cells.map(c => [key(c.hex), c.kind]));
   const ctx: Ctx = { kindAt: h => byKey.get(key(h)), g: new THREE.Group(), updates: [] };
-  emitters.length = towns.length = 0;   // 소리 나는 장식·마을 배치 기록은 장식과 함께 다시 등록
+  emitters.length = sites.length = 0;   // 소리 나는 장식·구경할 장소·자리 메모는 장식과 함께 다시 등록
+  notes.clear();
+  for (const kind of new Set(cells.map(c => c.kind))) for (const comp of cellsOf(cells, kind)) sites.push({ kind, comp });
   for (const map of [LAND_CLUSTER, SEA_CLUSTER, EXTRA_CLUSTER]) for (const [kind, fn] of Object.entries(map)) for (const comp of cellsOf(cells, kind as Kind)) fn!(ctx, comp);
   for (const c of cells) LAND_SINGLE[c.kind]?.(ctx, c.hex);
   lakeDecor(ctx, lakes);

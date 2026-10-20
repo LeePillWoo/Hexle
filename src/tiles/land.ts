@@ -10,7 +10,7 @@ import { emit } from '../audio/emitters';
 import { barnGeo, eruption, fruitStallGeo, marketStallGeo, palmGeo as PALM } from './extras';
 import { batch, inHex, lumpy, merge, paint, placed, prism, puffs, slope, smokeTex, vc, vcFlat, type Ctx } from './models';
 import type { Kind } from './kinds';
-import { benchGeo, TALL, towns, type Home, type Spot } from './villagers';
+import { benchGeo, note, TALL, type Home, type Spot } from './life';
 
 // ── 모델 ──
 const GREENS = [0x1e5a2e, 0x24683a, 0x2b7543, 0x33824c, 0x3c8f55];
@@ -108,6 +108,16 @@ const scarecrowGeo = merge(
   paint(new THREE.IcosahedronGeometry(0.04, 1).translate(0, 0.41, 0), 0xe8d6a8),
   paint(new THREE.ConeGeometry(0.07, 0.06, 10).translate(0, 0.46, 0), 0xc9a24a),
 );
+// 디테일 부품 도우미: 상자, 두 점을 잇는 막대(밧줄·버팀대), 지붕 비탈의 기와 줄(용마루 높이 ridge, 비탈 높이 drop, 반폭 half)
+const B = (w: number, h: number, d: number, x: number, y: number, z: number, c: number) => paint(new THREE.BoxGeometry(w, h, d).translate(x, y, z), c);
+function seg(a: [number, number, number], b: [number, number, number], r: number, c: number) {
+  const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b), len = va.distanceTo(vb);
+  const g = new THREE.CylinderGeometry(r, r, len, 4).translate(0, len / 2, 0);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), vb.clone().sub(va).normalize())).translate(...a);
+  return paint(g, c);
+}
+const tiles = (len: number, ridge: number, drop: number, half: number, c: number, x = 0) => [0.3, 0.55, 0.8].flatMap(f => [-1, 1].map(s =>
+  B(len, 0.008, 0.012, 0, 0, 0, c).rotateX(s * Math.atan2(half, drop)).translate(x, ridge - drop * f + 0.004, s * (half * f + 0.005))));
 // 집: 문이 +z. tall 이면 2층(벽이 0.14 높고 위층 창), timber 면 목조 골조(기둥·들보·가새). 창마다 창틀·덧창·창턱, 문엔 문틀·손잡이·디딤돌·차양
 function houseGeo(roof: number, wall: number, shutter: number, timber: boolean, tall: boolean) {
   const B = (w: number, h: number, d: number, x: number, y: number, z: number, c: number) => paint(new THREE.BoxGeometry(w, h, d).translate(x, y, z), c);
@@ -152,6 +162,13 @@ function houseGeo(roof: number, wall: number, shutter: number, timber: boolean, 
 const WALLS = [0xf2e6c8, 0xf4ecd8, 0xe8dcc0, 0xf0e2d0], SHUTTERS = [0x4f7a4a, 0x3f6fa0, 0x9a4a3a, 0x6b4a2b];
 const HOUSES = Array.from({ length: 16 }, (_, i) => ({ tall: i >= 8, geo: houseGeo([0xc0563f, 0x3f6fa0, 0x8a4f9e, 0x4f8a4a][i % 4], WALLS[(i >> 1) % 4], SHUTTERS[(i * 3) % 4], (i >> 2) % 2 === 1, i >= 8) }));
 const churchGeo = merge(
+  ...[-0.1, 0.12, 0.27].flatMap(x => [B(0.04, 0.3, 0.05, x, 0.2, 0.205, 0xd8d0c0), B(0.04, 0.3, 0.05, x, 0.2, -0.205, 0xd8d0c0)]),   // 버팀벽
+  B(0.66, 0.026, 0.026, 0, 0.88, 0, 0x4e3428), ...tiles(0.65, 0.88, 0.48, 0.277, 0x5a3a2e),
+  B(0.16, 0.24, 0.012, 0.05, 0.17, 0.192, 0x5a3a22), paint(new THREE.CylinderGeometry(0.08, 0.08, 0.012, 12, 1, false, -Math.PI / 2, Math.PI).rotateX(Math.PI / 2).translate(0.05, 0.29, 0.192), 0x5a3a22),
+  B(0.26, 0.03, 0.09, 0.05, 0.015, 0.25, 0xa8a398), B(0.2, 0.03, 0.05, 0.05, 0.045, 0.23, 0xa8a398),   // 계단
+  ...[-0.15, 0.22].map(x => B(0.09, 0.16, 0.01, x, 0.26, 0.196, 0xe8e2d4)),                             // 창틀
+  ...[[0, 0.105], [0.105, 0]].map(([x, z]) => B(x ? 0.012 : 0.08, 0.1, z ? 0.012 : 0.08, -0.34 + x, 0.6, z, 0x2a2a30)),   // 종탑 창
+  paint(new THREE.SphereGeometry(0.035, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI).translate(-0.34, 0.62, 0), 0xd8b040),   // 종
   paint(new THREE.BoxGeometry(0.62, 0.06, 0.42).translate(0, 0.03, 0), 0x8f8a80),
   paint(new THREE.BoxGeometry(0.58, 0.36, 0.38).translate(0, 0.24, 0), 0xf4ede0),
   paint(prism(0.32, 0.64).translate(0, 0.56, 0), 0x6e4a3a),
@@ -164,6 +181,9 @@ const churchGeo = merge(
   paint(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 12).rotateX(Math.PI / 2).translate(-0.34, 0.5, 0.105), 0x6d8fc0),
 );
 const wellGeo = merge(
+  ...Array.from({ length: 10 }, (_, i) => B(0.06, 0.035, 0.04, 0, 0, 0, i % 2 ? 0x8a857a : 0xa09a8e).rotateY(-i * Math.PI / 5).translate(Math.cos(i * Math.PI / 5) * 0.145, 0.135, Math.sin(i * Math.PI / 5) * 0.145)),
+  seg([0, 0.3, 0], [0, 0.2, 0], 0.003, 0xc8b890), paint(new THREE.CylinderGeometry(0.025, 0.02, 0.04, 8).translate(0, 0.18, 0), 0x8a6038),
+  B(0.36, 0.02, 0.02, 0, 0.55, 0, 0x7a3a2a),
   paint(new THREE.CylinderGeometry(0.14, 0.15, 0.14, 16, 1, true).translate(0, 0.07, 0), 0x9a958a),
   paint(new THREE.CylinderGeometry(0.12, 0.12, 0.02, 16).translate(0, 0.1, 0), 0x2f5a7a),
   ...[-0.12, 0.12].map(x => paint(new THREE.BoxGeometry(0.025, 0.3, 0.025).translate(x, 0.22, 0), 0x6b4a2b)),
@@ -171,6 +191,8 @@ const wellGeo = merge(
   paint(new THREE.CylinderGeometry(0.015, 0.015, 0.26, 6).rotateZ(Math.PI / 2).translate(0, 0.3, 0), 0x6b4a2b),
 );
 const tentGeo = merge(
+  ...[[1, 1], [1, -1], [-1, 1], [-1, -1]].flatMap(([sx, sz]) => [seg([sx * 0.2, 0.2, sz * 0.2], [sx * 0.42, 0, sz * 0.42], 0.003, 0xd8c8a0), B(0.012, 0.03, 0.012, sx * 0.42, 0.01, sz * 0.42, 0x6b4a2b)]),
+  paint(new THREE.BoxGeometry(0.09, 0.2, 0.008).translate(0, 0.1, 0).rotateY(0.7).translate(0.1, 0.02, 0.29), 0xd89050),
   paint(new THREE.ConeGeometry(0.42, 0.5, 4).rotateY(Math.PI / 4).translate(0, 0.25, 0), 0xc07a3e),
   paint(new THREE.BoxGeometry(0.16, 0.24, 0.01).translate(0, 0.12, 0.3).rotateX(-0.45), 0x7a4a24),  // 입구
   paint(new THREE.CylinderGeometry(0.012, 0.012, 0.62, 6).translate(0, 0.31, 0), 0x6b4a2b),
@@ -215,6 +237,9 @@ const palmGeo = (() => {
 const merlons = (r: number, y: number, n: number) => Array.from({ length: n }, (_, i) =>
   paint(new THREE.BoxGeometry(0.06, 0.06, 0.06).translate(Math.cos(i / n * 6.283) * r, y, Math.sin(i / n * 6.283) * r), 0x8a8680));
 const towerGeo = merge(
+  ...[0.15, 0.3, 0.45].map(y => paint(new THREE.CylinderGeometry(0.14 + (0.6 - y) * 0.033, 0.14 + (0.6 - y) * 0.033, 0.015, 14).translate(0, y, 0), 0x8a8680)),
+  ...[0, 2.1, 4.2].map(a => B(0.014, 0.06, 0.02, 0, 0, 0, 0x2a2a30).rotateY(-a).translate(Math.cos(a) * 0.14, 0.48, Math.sin(a) * 0.14)),
+  B(0.06, 0.1, 0.02, 0, 0.05, 0.15, 0x6b4a2b), B(0.07, 0.11, 0.012, 0, 0.055, 0.148, 0x4a4a4a),
   paint(new THREE.CylinderGeometry(0.13, 0.15, 0.6, 14).translate(0, 0.3, 0), 0x9a968e),
   paint(new THREE.CylinderGeometry(0.16, 0.14, 0.06, 14).translate(0, 0.62, 0), 0x8a8680), ...merlons(0.14, 0.68, 8),
   paint(new THREE.ConeGeometry(0.15, 0.22, 14).translate(0, 0.76, 0), 0x3f5f9f),
@@ -222,6 +247,10 @@ const towerGeo = merge(
   paint(new THREE.BoxGeometry(0.04, 0.06, 0.02).translate(0, 0.35, 0.145), 0x2a2a30),
 );
 const keepGeo = merge(
+  ...[0.17, 0.34].flatMap(y => [B(0.57, 0.014, 0.012, 0, y, 0.251, 0x8a8680), B(0.57, 0.014, 0.012, 0, y, -0.251, 0x8a8680), B(0.012, 0.014, 0.51, 0.281, y, 0, 0x8a8680), B(0.012, 0.014, 0.51, -0.281, y, 0, 0x8a8680)]),
+  ...[-0.14, 0.14].map(x => B(0.066, 0.096, 0.012, x, 0.32, 0.248, 0xd8d4cc)),
+  ...[-0.04, 0, 0.04].map(x => B(0.008, 0.18, 0.008, x, 0.09, 0.262, 0x3a3a3a)), ...[0.05, 0.11].map(y => B(0.12, 0.008, 0.008, 0, y, 0.262, 0x3a3a3a)),
+  ...[-0.14, 0.14].flatMap(x => [B(0.05, 0.13, 0.006, x, 0.18, 0.255, 0xc0322a), B(0.02, 0.02, 0.004, x, 0.2, 0.259, 0xe8c050)]),
   paint(new THREE.BoxGeometry(0.56, 0.5, 0.5).translate(0, 0.25, 0), 0xa09c94),
   ...[[-0.26, -0.23], [0.26, -0.23], [-0.26, 0.23], [0.26, 0.23]].flatMap(([x, z]) => [
     paint(new THREE.CylinderGeometry(0.08, 0.09, 0.66, 10).translate(x, 0.33, z), 0x9a968e), paint(new THREE.ConeGeometry(0.1, 0.16, 10).translate(x, 0.74, z), 0x3f5f9f)]),
@@ -232,6 +261,8 @@ const keepGeo = merge(
   paint(new THREE.CylinderGeometry(0.006, 0.006, 0.3, 5).translate(0, 0.7, 0), 0x5a4a3a), paint(new THREE.BoxGeometry(0.1, 0.06, 0.005).translate(0.055, 0.8, 0), 0xd03a2f),
 );
 const wallGeo = merge(
+  B(R, 0.02, 0.105, 0, 0.12, 0, 0x8a8680), B(R, 0.02, 0.105, 0, 0.3, 0, 0x8a8680),
+  ...[-0.3, 0, 0.3].map(x => B(0.014, 0.06, 0.104, x, 0.22, 0, 0x2a2a30)),
   paint(new THREE.BoxGeometry(R, 0.57, 0.1).translate(0, 0.135, 0), 0x9a968e),
   ...[-0.45, -0.27, -0.09, 0.09, 0.27, 0.45].map(x => paint(new THREE.BoxGeometry(0.09, 0.08, 0.12).translate(x, 0.46, 0), 0x8a8680)),
 );
@@ -337,7 +368,7 @@ function farm(ctx: Ctx, comp: Hex[]) {
   const { rnd, ang, ext, c, at } = gridOf(comp, seedOf(comp[0]) + 11);
   const wheat = batch(wheatGeo), sprouts = batch(sproutGeo), cabbage = batch(cabbageGeo);
   const barn = comp.length >= 4 ? toWorld(mostConnected(comp)) : null;
-  if (barn) ctx.g.add(placed(barnGeo, barn.x - 0.1, heightFast(barn.x - 0.1, barn.z), barn.z, 1.15, ang + Math.PI / 2));
+  if (barn) { ctx.g.add(placed(barnGeo, barn.x - 0.1, heightFast(barn.x - 0.1, barn.z), barn.z, 1.15, ang + Math.PI / 2)); note(comp, { barn }); }
   const inside = (x: number, z: number) => farmInside(x, z) > 0.16 && slope(x, z) < 0.6 && (!barn || Math.hypot(x - barn.x, z - barn.z) > 0.75);
   for (let v = -ext; v <= ext; v += 0.17) {
     const band = Math.floor((v + ext) / 0.68) % 3;                       // 0 밀, 1 양배추, 2 어린 싹
@@ -368,10 +399,13 @@ function orchard(ctx: Ctx, comp: Hex[]) {
   const { rnd, ext, at } = gridOf(comp, seedOf(comp[0]) + 71), trees = batch(fruitTreeGeo, vcFlat);
   const stand = comp.length >= 3 ? toWorld(mostConnected(comp)) : null;
   if (stand) ctx.g.add(placed(fruitStallGeo, stand.x, heightFast(stand.x, stand.z), stand.z, 1.2, rnd() * 6));
+  const treeAt: { x: number; z: number }[] = [];
+  note(comp, { stand: stand ?? undefined, trees: treeAt });   // 구경할 때 과일 따는 자리
   for (let v = -ext; v <= ext; v += 0.42) for (let u = -ext; u <= ext; u += 0.42) {
     const p = at(u, v), x = p.x + (rnd() - 0.5) * 0.06, z = p.z + (rnd() - 0.5) * 0.06, y = heightFast(x, z);
     if (ctx.kindAt(fromWorld(x, z)) !== 'orchard' || y < 0.4 || slope(x, z) > 0.6 || (stand && Math.hypot(x - stand.x, z - stand.z) < 0.4)) continue;
     trees.push(x, y - 0.01, z, 0.85 + rnd() * 0.3, rnd() * 6, [0xffffff, 0xeef8e4, 0xe4ffdc][Math.floor(rnd() * 3)]);
+    treeAt.push({ x, z });
   }
   ctx.g.add(trees.build());
   comp.forEach((h, i) => {
@@ -450,7 +484,7 @@ function village(ctx: Ctx, comp: Hex[]) {
     }
   }
   ctx.g.add(steps.build());
-  towns.push({ comp, well: center, homes: allHomes, spots, stalls });
+  note(comp, { town: { well: center, homes: allHomes, spots, stalls } });
 }
 
 // 성: 1칸은 탑 하나. 이어지면 가운데 본채, 바깥 변마다 성벽, 모서리마다 탑, 한 변은 성문으로 비운다
@@ -458,10 +492,12 @@ function castle(ctx: Ctx, comp: Hex[]) {
   const center = mostConnected(comp), c = toWorld(center), rnd = rng(seedOf(center) + 61);
   if (comp.length === 1) {
     ctx.g.add(placed(towerGeo, c.x, heightFast(c.x, c.z), c.z, 1.3, rnd() * 6));
+    note(comp, { tower: c });
     ctx.g.add(placed(crateGeo, c.x + 0.4, heightFast(c.x + 0.4, c.z + 0.2), c.z + 0.2, 1, rnd() * 6));
     return;
   }
   ctx.g.add(placed(keepGeo, c.x, heightFast(c.x, c.z), c.z, 1.15, 0));
+  note(comp, { keep: c });
   const inComp = (h: Hex) => comp.some(o => key(o) === key(h)), towers = new Map<string, { x: number; z: number }>();
   let gate = false;
   for (const h of comp) {
@@ -552,6 +588,7 @@ function camp(ctx: Ctx, h: Hex) {
   g.add(placed(flameGeo, fx, fy + 0.1, fz, 1, 0, flameMat));
   g.add(placed(crateGeo, c.x - 0.6, y(-0.6, 0.1), c.z + 0.1, 1, 0.4));
   g.add(placed(barrelGeo, c.x - 0.5, y(-0.5, 0.3), c.z + 0.3));
+  note([h], { fire: { x: fx, z: fz }, tent: { x: c.x - 0.25, z: c.z - 0.05 }, crate: { x: c.x - 0.6, z: c.z + 0.1 } });
   const fire = new THREE.PointLight(0xff8a3a, 1.5, 2.5);
   fire.position.set(fx, fy + 0.3, fz);
   g.add(fire);

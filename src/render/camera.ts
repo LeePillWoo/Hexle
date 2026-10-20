@@ -16,7 +16,7 @@ export function createCamera(canvas: HTMLElement) {
   controls.maxDistance = 90;
 
   // 잠수/부상: 목표 지점(바라보는 곳)과 카메라 위치로 부드럽게 이동
-  let goal: { t: THREE.Vector3; c: THREE.Vector3 } | null = null;
+  let goal: { t: THREE.Vector3; c: THREE.Vector3 } | null = null, goalAge = 0;   // 관성 때문에 끝까지 못 닿을 수 있어 2.5초면 놓는다
   function dive(down: boolean) {
     const t = controls.target, dir = camera.position.clone().sub(t).setY(0).normalize();
     if (!dir.lengthSq()) dir.set(0, 0, 1);
@@ -31,10 +31,10 @@ export function createCamera(canvas: HTMLElement) {
       }
       const back = dirs.reduce((a, b) => heightFast(p.x + b.x * 3.5, p.z + b.z * 3.5) < heightFast(p.x + a.x * 3.5, p.z + a.z * 3.5) ? b : a);
       const ty = Math.min(-0.4, heightFast(p.x, p.z) + 0.5), c = p.clone().addScaledVector(back, 3.5);
-      goal = { t: new THREE.Vector3(p.x, ty, p.z), c: c.setY(Math.min(-0.15, Math.max(ty + 0.25, heightFast(c.x, c.z) + 0.3))) };
+      goalAge = 0; goal = { t: new THREE.Vector3(p.x, ty, p.z), c: c.setY(Math.min(-0.15, Math.max(ty + 0.25, heightFast(c.x, c.z) + 0.3))) };
     } else {
       const tt = new THREE.Vector3(t.x, 0.3, t.z);
-      goal = { t: tt, c: tt.clone().addScaledVector(dir, 17 * Math.sin(1.0)).setY(0.3 + 17 * Math.cos(1.0)) };
+      goalAge = 0; goal = { t: tt, c: tt.clone().addScaledVector(dir, 17 * Math.sin(1.0)).setY(0.3 + 17 * Math.cos(1.0)) };
     }
   }
   // 사용자가 직접 돌리거나 휠을 굴리면 진행 중인 이동은 바로 멈춘다 (안 그러면 끝까지 끌어당겨 빠져나갈 수 없다)
@@ -46,10 +46,11 @@ export function createCamera(canvas: HTMLElement) {
     const dir = camera.position.clone().sub(controls.target).setY(0).normalize();
     if (!dir.lengthSq()) dir.set(0, 0, 1);
     const t = new THREE.Vector3(x, heightFast(x, z) + 0.1, z);
-    goal = { t, c: t.clone().addScaledVector(dir, 2.4).setY(t.y + 2.2) };
+    goalAge = 0; goal = { t, c: t.clone().addScaledVector(dir, 2.4).setY(t.y + 2.2) };
   }
   function update(dt: number) {
     controls.update();
+    if (goal && (goalAge += Math.min(dt, 0.1)) > 2.5) goal = null;   // 느린 프레임 하나로 바로 놓치지 않게
     if (goal) {
       const k = 1 - Math.exp(-dt * 3);
       controls.target.lerp(goal.t, k);

@@ -68,7 +68,7 @@ await view(1.5, 0.3, 0, 1.5, 12, 9); await wait(1200); await js(`hexle.cam.dive(
 console.log('after dive:', await js(`hexle.hud.mode + ' underwater=' + hexle.cam.isUnderwater() + ' camY=' + hexle.cam.camera.position.y.toFixed(2)`));
 await js(`hexle.docks.sea.el.querySelector('.egg').click(); (hexle.docks.sea.el.querySelectorAll('.mtab')[1].click(), hexle.docks.sea.el.querySelector('.egg').click()); 0`);
 await shot('dive_ui');
-await js(`hexle.cam.dive(false); 0`); await wait(3000);
+await js(`hexle.cam.dive(false); 0`); await wait(6000);   // 소프트웨어 렌더링은 물속 프레임이 느려 넉넉히
 console.log('after surface:', await js(`hexle.hud.mode + ' underwater=' + hexle.cam.isUnderwater() + ' camY=' + hexle.cam.camera.position.y.toFixed(2)`));
 
 // 문제: 정답을 넣으면 타일·아이템 카드가 한 장씩 늘어난다, 오답이면 그대로
