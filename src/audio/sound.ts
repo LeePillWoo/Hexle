@@ -45,7 +45,7 @@ const MAX_SFX = 2;   // 한 번짜리 효과음은 동시에 2개까지
 // 깔리는 소리는 한 번에 한 묶음만: 같은 소리의 겹(파도+거품, 먼 바람+먼바다)은 한 묶음으로 친다
 const BED_GROUP: Record<string, string> = { foam: 'waves', far: 'wind' };
 // 소리마다 최대 음량이 달라서(풀벌레는 원래 작다) 고를 때는 최대치에 대한 비율로 비교한다
-const BED_PEAK: Record<string, number> = { far: 0.27, wind: 0.41, waves: 0.59, foam: 0.36, lap: 0.5, leaves: 0.3, bees: 0.18, crickets: 0.05, snowWind: 0.3, desertWind: 0.3, lava: 0.85, fire: 0.25, under: 0.55 };
+const BED_PEAK: Record<string, number> = { far: 0.27, wind: 0.41, waves: 0.59, foam: 0.36, lap: 0.5, leaves: 0.3, bees: 0.18, crickets: 0.05, snowWind: 0.3, desertWind: 0.3, lava: 0.85, fire: 0.25, under: 0.55, village: 0.22 };
 
 export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
   let ac: AudioContext | null = null, enabled = true, underwater = false;
@@ -92,6 +92,7 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
     noiseBed('lava', 'lowpass', 130, 0.8, 0.25, 0.5);
     noiseBed('fire', 'bandpass', 2400, 0.8, 9, 0.9);
     noiseBed('under', 'lowpass', 320, 0.7, 0.12, 0.5);
+    noiseBed('village', 'bandpass', 900, 1.6, 3.2, 0.8, 350);   // 웅성웅성: 말소리 대역의 잡음을 빠르게 출렁이고 높낮이를 흔든다
     // 벌: 떨리는 톱니파 붕붕
     { const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 215;
       const l = ac.createOscillator(); l.frequency.value = 7; const lg = ac.createGain(); lg.gain.value = 9; l.connect(lg); lg.connect(o.frequency); l.start(); o.start();
@@ -179,7 +180,7 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
 
   // ── 매 0.2초: 주변을 세어 깔리는 소리 섞기 ──
   const nextAt = new WeakMap<object, number>(), emitNext = new Map<string, number>();
-  let lastTick = 0, birdAt = 0, gullAt = 0, frogAt = 0, bubbleAt = 0;
+  let lastTick = 0, birdAt = 0, gullAt = 0, frogAt = 0, bubbleAt = 0, hammerAt = 0, roosterAt = 0;
   const lastLevel = new Map<string, number>();
   // 목표 음량 중 가장 큰 묶음 하나만 남기고 나머지는 끈다
   function setBeds(b: Record<string, number>) {
@@ -244,6 +245,7 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
       snowWind: near * W('snow') * 0.3,
       desertWind: near * W('desert') * 0.3,
       lava, fire: fire * 0.25,
+      village: (1 - ss(4.5, 7, camDist)) * W('house') * 0.22,   // 마을 가까이 내려앉았을 때만
     });
     // 모닥불 타닥: 모닥불이 지금 깔리는 소리일 때만
     if (win === 'fire' && fireAt && Math.random() < 0.5) noiseHit(fire * 0.25, panFor(fireAt.x, fireAt.y, fireAt.z), 'highpass', 2500, 3000, 0.03, true);
@@ -251,6 +253,9 @@ export function createSound(camera: THREE.Camera, target: THREE.Vector3) {
     if (active < MAX_SFX && !underwater) {
       if (t > birdAt && near * greens > 0.05) { chirp(near * greens * 0.5, rand(-0.8, 0.8)); birdAt = t + rand(2, 6) / (0.4 + greens); }
       if (t > gullAt && near * sea > 0.15) { voice(VOICES.seagull!, near * sea * 0.25, rand(-0.8, 0.8)); gullAt = t + rand(8, 18); }
+      const town = (1 - ss(4.5, 7, camDist)) * W('house');   // 마을: 망치질 땅땅, 가끔 닭 울음
+      if (t > hammerAt && town > 0.3) { const pan = rand(-0.6, 0.6); for (let i = 0; i < 3; i++) setTimeout(() => tone([1250, 3100], town * 0.18, pan, 0.08, 'triangle'), i * 420); hammerAt = t + rand(6, 14); }
+      if (t > roosterAt && town > 0.3) { voice(V('sawtooth', 600, 450, 0.9, 1500, 3, { fm: 950, vib: 30, rate: 12 }), town * 0.25, rand(-0.7, 0.7)); roosterAt = t + rand(20, 40); }
       if (t > frogAt && near * lake > 0.1) { voice(VOICES.frog!, near * lake * 0.4, rand(-0.6, 0.6)); frogAt = t + rand(3, 8); }
     }
     if (underwater && t > bubbleAt) { bubble(0.25, rand(-0.8, 0.8)); bubbleAt = t + rand(0.4, 2); }

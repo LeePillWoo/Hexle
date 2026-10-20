@@ -15,7 +15,7 @@ import * as state from './game/state';
 import { canPlace } from './items/index';
 import { clearSave, loadSave, writeSave } from './game/save';
 import { lighthouse } from './tiles/index';
-import { view } from './tiles/villagers';
+import { lifeGroup, updateLife, view } from './tiles/villagers';
 import { clusters, mostConnected, toWorld } from './core/hex';
 import { isSeaKind, RULE_HINT, TILE_INFO, TILE_TABS, type Kind } from './tiles/kinds';
 import { ITEM_INFO, ITEM_TABS, PLACE_NAME, type ItemKind } from './items/kinds';
@@ -39,7 +39,7 @@ const sound = createSound(cam.camera, cam.controls.target);
 const water = createWater(sunDir, lowEnd ? 512 : 1024, lowEnd ? 2 : 1);
 const overlay = createOverlay();
 const postfx = createPostFX(renderer, scene, cam.camera);
-scene.add(water.group, terrain, overlay.group, state.group);
+scene.add(water.group, terrain, overlay.group, state.group, lifeGroup);
 
 // ── UI ──
 const josa = (w: string, withFinal: string, without: string) => w + ((w.charCodeAt(w.length - 1) - 0xac00) % 28 ? withFinal : without);
@@ -187,6 +187,7 @@ renderer.setAnimationLoop(t => {
   } else if (visiting && dist > 7) { visiting = false; hud.say(''); }
   view.target.copy(tg);
   view.dist = dist;
+  updateLife(now);
   sun.target.position.set(tg.x, 0, tg.z);
   sun.position.set(tg.x, 0, tg.z).addScaledVector(sunDir, 30);
   sound.update(now);

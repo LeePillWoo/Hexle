@@ -10,7 +10,7 @@ import { emit } from '../audio/emitters';
 import { barnGeo, eruption, fruitStallGeo, marketStallGeo, palmGeo as PALM } from './extras';
 import { batch, inHex, lumpy, merge, paint, placed, prism, puffs, slope, smokeTex, vc, vcFlat, type Ctx } from './models';
 import type { Kind } from './kinds';
-import { villagers, type Spot } from './villagers';
+import { benchGeo, towns, type Home, type Spot } from './villagers';
 
 // ── 모델 ──
 const GREENS = [0x1e5a2e, 0x24683a, 0x2b7543, 0x33824c, 0x3c8f55];
@@ -69,11 +69,6 @@ const baleGeo = merge(
 const fenceGeo = merge(
   ...[-0.2, 0, 0.2].map(x => paint(new THREE.BoxGeometry(0.025, 0.12, 0.025).translate(x, 0.06, 0), 0x8a6038)),
   ...[0.05, 0.09].map(y => paint(new THREE.BoxGeometry(0.44, 0.015, 0.012).translate(0, y, 0), 0x9a7048)),
-);
-const benchGeo = merge(
-  paint(new THREE.BoxGeometry(0.2, 0.02, 0.12).translate(0, 0.07, 0), 0x9a7048),
-  ...[-0.08, 0.08].map(x => paint(new THREE.BoxGeometry(0.02, 0.07, 0.1).translate(x, 0.035, 0), 0x7a5432)),
-  ...[-0.11, 0.11].map(z => paint(new THREE.BoxGeometry(0.2, 0.015, 0.04).translate(0, 0.045, z), 0x9a7048)),
 );
 const stepGeo = paint(lumpy(new THREE.IcosahedronGeometry(1, 1), 0.08).scale(1, 0.3, 1), 0xa9a49a);
 const reedGeo = merge(
@@ -356,8 +351,9 @@ function orchard(ctx: Ctx, comp: Hex[]) {
 }
 
 // 마을: 1칸이면 집 한 채, 이어지면 칸마다 네 채가 길을 향해. 3칸 이상 우물 광장, 5칸 이상 교회
+//  집·문·우물·가판대 자리는 towns 에 기록해 두고, 주민과 생활 소품은 가까이 구경할 때 villagers.ts 가 만든다
 function village(ctx: Ctx, comp: Hex[]) {
-  const center = comp.length >= 3 ? mostConnected(comp) : undefined, spots: Spot[] = [];
+  const center = comp.length >= 3 ? mostConnected(comp) : undefined, spots: Spot[] = [], allHomes: Home[] = [], stalls: { x: number; z: number; face: number }[] = [];
   for (const h of comp) {
     const rnd = rng(seedOf(h) + 23), c = toWorld(h);
     if (comp.length === 1) {
@@ -365,18 +361,21 @@ function village(ctx: Ctx, comp: Hex[]) {
       ctx.g.add(placed(ROOFS[0], c.x, heightFast(c.x, c.z), c.z, 1.25, rot));
       ctx.g.add(placed(crateGeo, c.x + 0.45, heightFast(c.x + 0.45, c.z + 0.2), c.z + 0.2, 1, rnd() * 6));
       ctx.g.add(placed(barrelGeo, c.x - 0.45, heightFast(c.x - 0.45, c.z + 0.25), c.z + 0.25));
-      spots.push({ x: c.x + Math.sin(rot) * 0.32, z: c.z + Math.cos(rot) * 0.32, hub: h, door: true },
-        { x: c.x + 0.42, z: c.z + 0.4, hub: h, face: Math.PI }, { x: c.x - 0.42, z: c.z + 0.45, hub: h, face: Math.PI });
+      allHomes.push({ x: c.x, z: c.z, face: rot, s: 1.25 });
+      spots.push({ x: c.x + Math.sin(rot) * 0.32, z: c.z + Math.cos(rot) * 0.32, hub: h, kind: 'door' },
+        { x: c.x + 0.42, z: c.z + 0.4, hub: h, kind: 'stand', face: Math.PI }, { x: c.x - 0.42, z: c.z + 0.45, hub: h, kind: 'stand', face: Math.PI });
       continue;
     }
     if (center && h === center) {
       ctx.g.add(placed(wellGeo, c.x, heightFast(c.x, c.z), c.z, 1.1));
-      for (let i = 0; i < 3; i++) { const a = i * 2.1 + 0.4; spots.push({ x: c.x + Math.cos(a) * 0.27, z: c.z + Math.sin(a) * 0.27, hub: h, face: Math.atan2(-Math.cos(a), -Math.sin(a)) }); }   // 우물가
+      for (let i = 0; i < 3; i++) { const a = i * 2.1 + 0.4; spots.push({ x: c.x + Math.cos(a) * 0.27, z: c.z + Math.sin(a) * 0.27, hub: h, kind: 'well', face: Math.atan2(-Math.cos(a), -Math.sin(a)) }); }   // 우물가
       if (comp.length >= 4) for (let i = 0; i < 4; i++) {
         const a = i * Math.PI / 2 + Math.PI / 4, x = c.x + Math.cos(a) * 0.55, z = c.z + Math.sin(a) * 0.55;
         if (comp.length >= 5 && z < c.z - 0.2) continue;   // 교회 자리
         ctx.g.add(placed(marketStallGeo[i], x, heightFast(x, z), z, 1, Math.atan2(c.x - x, c.z - z)));
-        spots.push({ x: c.x + Math.cos(a) * 0.36, z: c.z + Math.sin(a) * 0.36, hub: h, face: Math.atan2(Math.cos(a), Math.sin(a)) });   // 가판대 손님
+        spots.push({ x: c.x + Math.cos(a) * 0.36, z: c.z + Math.sin(a) * 0.36, hub: h, kind: 'stall', face: Math.atan2(Math.cos(a), Math.sin(a)) });   // 가판대 손님
+        const vx = c.x + Math.cos(a) * 0.72, vz = c.z + Math.sin(a) * 0.72;
+        stalls.push({ x: vx, z: vz, face: Math.atan2(c.x - vx, c.z - vz) });   // 상인: 가판대 안쪽
       }
       if (comp.length >= 5) { const x = c.x - 0.15, z = c.z - 0.62; ctx.g.add(placed(churchGeo, x, heightFast(x, z), z, 1.1, 0)); emit({ x, y: heightFast(x, z) + 1, z, kind: 'bell' }); }
       continue;
@@ -390,7 +389,8 @@ function village(ctx: Ctx, comp: Hex[]) {
         homes.push({ x, z });
         const face = Math.atan2(c.x - x, c.z - z), y = heightFast(x, z), s = 0.75 + rnd() * 0.15;
         ctx.g.add(placed(ROOFS[Math.floor(rnd() * ROOFS.length)], x, y - 0.01, z, s, face));
-        spots.push({ x: x + Math.sin(face) * (0.19 * s + 0.04), z: z + Math.cos(face) * (0.19 * s + 0.04), hub: h, door: true });
+        allHomes.push({ x, z, face, s });
+        spots.push({ x: x + Math.sin(face) * (0.19 * s + 0.04), z: z + Math.cos(face) * (0.19 * s + 0.04), hub: h, kind: 'door' });
         if (rnd() < 0.6) {   // 집 뒤쪽 옆으로 울타리 한 칸
           const fx = x - Math.sin(face) * 0.26 + Math.cos(face) * 0.12, fz = z - Math.cos(face) * 0.26 - Math.sin(face) * 0.12;
           ctx.g.add(placed(fenceGeo, fx, heightFast(fx, fz), fz, 0.9, face + Math.PI / 2));
@@ -418,7 +418,7 @@ function village(ctx: Ctx, comp: Hex[]) {
     }
   }
   ctx.g.add(steps.build());
-  villagers(ctx, comp, spots, center);
+  towns.push({ comp, well: center, homes: allHomes, spots, stalls });
 }
 
 // 성: 1칸은 탑 하나. 이어지면 가운데 본채, 바깥 변마다 성벽, 모서리마다 탑, 한 변은 성문으로 비운다
