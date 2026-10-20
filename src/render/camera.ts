@@ -37,6 +37,10 @@ export function createCamera(canvas: HTMLElement) {
       goal = { t: tt, c: tt.clone().addScaledVector(dir, 17 * Math.sin(1.0)).setY(0.3 + 17 * Math.cos(1.0)) };
     }
   }
+  // 사용자가 직접 돌리거나 휠을 굴리면 진행 중인 이동은 바로 멈춘다 (안 그러면 끝까지 끌어당겨 빠져나갈 수 없다)
+  controls.addEventListener('start', () => { goal = null; });
+  canvas.addEventListener('wheel', () => { goal = null; }, { passive: true });
+
   // (x, z) 를 바라보며 낮고 가까이 내려앉는다 (보던 방향은 유지)
   function glide(x: number, z: number) {
     const dir = camera.position.clone().sub(controls.target).setY(0).normalize();
