@@ -286,7 +286,7 @@ mat.onBeforeCompile = s => {
       totalEmissiveRadiance += vec3(0.2, 0.7, 1.0) * spark * (0.6 + 0.4 * sin(time * 2.0 + cellId * 40.0));`);
 };
 export const terrain = new THREE.Mesh(geo, mat);
-terrain.castShadow = terrain.receiveShadow = true;
+terrain.receiveShadow = true;   // 그림자는 받기만: 수십만 삼각형을 그림자 맵에 또 그리면 태블릿이 버벅인다
 
 // ── 빠른 조회: 마지막으로 계산한 격자에서 쌍선형 보간 ──
 const heights = new Float32Array(N * N).fill(H_MIN);

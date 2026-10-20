@@ -135,9 +135,12 @@ lake.position.y = LAKE_Y;
 const abyss = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x021a2a }));
 abyss.position.y = -4.6;
 
-// reflection: 반사 텍스처 크기 (모바일은 작게)
-export function createWater(sunDir: THREE.Vector3, reflection = 1024) {
+// reflection: 반사 텍스처 크기 (모바일은 작게), reflectEvery: 반사를 몇 프레임마다 다시 그릴지 (반사는 장면 전체를 한 번 더 그린다)
+export function createWater(sunDir: THREE.Vector3, reflection = 1024, reflectEvery = 1) {
   const water = createSurface(sunDir, reflection);
+  const drawReflection = water.onBeforeRender;
+  let frame = 0;
+  water.onBeforeRender = (...a) => { if (frame++ % reflectEvery === 0) drawReflection.apply(water, a); };
   const group = new THREE.Group().add(water, underside, lake, abyss);
   underside.visible = false;
   return {

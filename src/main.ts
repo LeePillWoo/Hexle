@@ -23,7 +23,7 @@ const narrow = matchMedia('(max-width: 760px)');
 const lowEnd = narrow.matches || matchMedia('(pointer: coarse)').matches;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, lowEnd ? 1.5 : 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, lowEnd ? 1.25 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.6;
@@ -34,7 +34,7 @@ const scene = new THREE.Scene();
 const cam = createCamera(renderer.domElement);
 const { sunDir, sun } = createSky(renderer, scene, lowEnd ? 1024 : 2048);
 const sound = createSound(cam.camera, cam.controls.target);
-const water = createWater(sunDir, lowEnd ? 512 : 1024);
+const water = createWater(sunDir, lowEnd ? 512 : 1024, lowEnd ? 2 : 1);
 const overlay = createOverlay();
 const postfx = createPostFX(renderer, scene, cam.camera);
 scene.add(water.group, terrain, overlay.group, state.group);
