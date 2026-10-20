@@ -15,6 +15,8 @@ import * as state from './game/state';
 import { canPlace } from './items/index';
 import { clearSave, loadSave, writeSave } from './game/save';
 import { lighthouse } from './tiles/index';
+import { view } from './tiles/villagers';
+import { clusters, mostConnected, toWorld } from './core/hex';
 import { isSeaKind, RULE_HINT, TILE_INFO, TILE_TABS, type Kind } from './tiles/kinds';
 import { ITEM_INFO, ITEM_TABS, PLACE_NAME, type ItemKind } from './items/kinds';
 
@@ -166,7 +168,7 @@ addEventListener('resize', () => {
 
 // ── 루프 ──
 const timer = new THREE.Timer();
-let wasUnder = false;
+let wasUnder = false, visiting = false;
 renderer.setAnimationLoop(t => {
   timer.update(t);
   const dt = timer.getDelta(), now = timer.getElapsed();
@@ -176,7 +178,15 @@ renderer.setAnimationLoop(t => {
   const under = cam.isUnderwater();
   if (under !== wasUnder) { wasUnder = under; water.setUnderwater(under); sound.setUnderwater(under); setMode(under ? 'sea' : 'island'); }
   // 그림자는 보는 곳 주변만 (섬이 넓어도 선명하게)
-  const tg = cam.controls.target;
+  const tg = cam.controls.target, dist = cam.camera.position.distanceTo(tg);
+  // 마을 가까이 확대하면 그 칸으로 스르륵 내려앉는다 (주민은 가까이 있을 때만 보인다). 다시 멀어지면 해제
+  if (!visiting && dist < 4.5 && !under) {
+    const town = clusters(state.cells.filter(c => c.kind === 'house').map(c => c.hex))
+      .find(comp => comp.some(h => { const w = toWorld(h); return Math.hypot(w.x - tg.x, w.z - tg.z) < 1.6; }));
+    if (town) { const p = toWorld(mostConnected(town)); visiting = true; cam.glide(p.x, p.z); hud.say('🏘️ 마을 구경 중 · 멀리 빼면 돌아가요'); }   // 광장(가장 많이 이어진 칸)으로
+  } else if (visiting && dist > 7) { visiting = false; hud.say(''); }
+  view.target.copy(tg);
+  view.dist = dist;
   sun.target.position.set(tg.x, 0, tg.z);
   sun.position.set(tg.x, 0, tg.z).addScaledVector(sunDir, 30);
   sound.update(now);

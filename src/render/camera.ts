@@ -37,6 +37,13 @@ export function createCamera(canvas: HTMLElement) {
       goal = { t: tt, c: tt.clone().addScaledVector(dir, 17 * Math.sin(1.0)).setY(0.3 + 17 * Math.cos(1.0)) };
     }
   }
+  // (x, z) 를 바라보며 낮고 가까이 내려앉는다 (보던 방향은 유지)
+  function glide(x: number, z: number) {
+    const dir = camera.position.clone().sub(controls.target).setY(0).normalize();
+    if (!dir.lengthSq()) dir.set(0, 0, 1);
+    const t = new THREE.Vector3(x, heightFast(x, z) + 0.1, z);
+    goal = { t, c: t.clone().addScaledVector(dir, 2.4).setY(t.y + 2.2) };
+  }
   function update(dt: number) {
     controls.update();
     if (goal) {
@@ -57,5 +64,5 @@ export function createCamera(canvas: HTMLElement) {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
   }
-  return { camera, controls, dive, update, isUnderwater, resize };
+  return { camera, controls, dive, glide, update, isUnderwater, resize };
 }
